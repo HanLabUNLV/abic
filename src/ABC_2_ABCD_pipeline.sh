@@ -39,10 +39,15 @@ done
 
 #next create the base networks
 #node01
-cat data/gene_parts.ab | cut -f2 | parallel --max-args=1 -j 35 'python src/generate_base_networks.py {1}' 
+#cat data/gene_parts.ab | cut -f2 | parallel --max-args=1 -j 35 'python src/generate_base_networks.py {1}' 
 
 #node02
 #cat data/gene_parts.aa1 | cut -f2 | parallel --max-args=1 -j 35 'python src/generate_base_networks.py {1}' 
 
 #node03
 #cat data/gene_parts.ac | cut -f2 | parallel --max-args=1 -j 35 'python src/generate_base_networks.py {1}' 
+
+#filter the base networks 
+#node01
+ls data/gene_tss_parts/ | parallel --max-args=1 -j 35 'python src/optimize_loop_pvalue.py data/enhancers.gas.class.tsv --gene_tss {1}' 
+

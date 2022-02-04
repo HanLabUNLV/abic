@@ -1,5 +1,6 @@
 import pandas as pd
 import pickle as pkl
+import argparse
 from scipy import optimize
 import numpy as np
 import os.path
@@ -131,7 +132,7 @@ def estimate_ABC(network, pnode):
         neighbors = promoter.neighbors()
         abc_nums = []
         for neighbor in neighbors:
-            contact = neighbor['Ceg'] #contact between enhancer and gene
+            contact = network.es[network.get_eid(pnode,neighbor['name'])]['contact'] #contact between enhancer and gene
             abc_num = []
             for activity in neighbor['enhancers']['activity']:
                 abc_num.append(activity*contact)
@@ -151,7 +152,7 @@ def estimate_ABC(network, pnode):
     return(network)
 
 def classify_network(gene, ground_truth, network, pnode, threshold):
-    ground_truth = deepcopy(ground_truth.loc[ground_truth['Gene']==gene,])
+    ground_truth = deepcopy(ground_truth.loc[ground_truth['TargetGene']==gene,])
     promoter = network.vs.find(pnode)
     neighbors = [v for v in network.vs] #promoter.neighbors()
     
@@ -159,7 +160,7 @@ def classify_network(gene, ground_truth, network, pnode, threshold):
         sigs = []
         for local_enh in neighbor['enhancers']['local_enhancers']:
             chrm, start, end = local_enh
-            sig = ground_truth.loc[(ground_truth['chr']==chrm)&(ground_truth['start']==start)&(ground_truth['end']==end),'Significant']
+            sig = ground_truth.loc[(ground_truth['chr']==chrm)&(ground_truth['start']==start)&(ground_truth['end']==end),'significant']
             if len(sig.index)==1:
                 sigs.append(sig.values[0])
             elif len(sig.index)==0:
@@ -239,8 +240,14 @@ def total_f1_score(classes):
 #then we try and recapture the precision-recall curve of ABC and optimize the p value so that the AUC is the greatest
 #then later, we will add the ABCD score and see if we can improve the AUC
 
+parser = argparse.ArgumentParser(description='get enhancers')
+parser.add_argument('enhancers', type=str, help='1st argument must be enhancers table')
+parser.add_argument('--gene_tss', type=str, help='must pass gene_tss file')
+
+
 #read in classified enhancers with precomputed ABC score
-enhancers = pd.read_csv('EnhancerPredictionsAllPutative.classified.txt', header=0, sep = '\t')
+efile = parser.parse_args().enhancers
+enhancers = pd.read_csv(efile, header=0, sep = '\t')
 #enhancers.rename(columns={'Gene':'TargetGene','Gene TSS':'TargetGeneTSS', 'Activity':'activity_base', 'ABC Score':'ABC.Score', 'Normalized HiC Contacts':'hic_contact_pl_scaled_adj'}, inplace=True)
 enhancers.dropna(subset = ['chr','start','end'], inplace=True)
 enhancers['start'] = enhancers.start.astype(int)
@@ -256,7 +263,8 @@ chromosomes = ['chr10',  'chr12',  'chr19',  'chr3',  'chr8',  'chrX']
 gene_tss = {}
 
 #get genes/tss 
-with open('gene_tss.uniq.tsv','r') as f:
+gene_tss_file = parser.parse_args().gene_tss
+with open(gene_tss_file,'r') as f:
     for line in f:
         chrm, gene, tss = line.strip().split('\t')
         if chrm in chromosomes:
@@ -277,7 +285,7 @@ for gene in gene_tss:
     if chromosome in chromosomes:
         lbound = tss - window/2
         ubound = tss + window/2
-        loops = pd.read_csv('fithic_loops/'+chromosome+'/fithic_filtered.bedpe', sep='\t')
+        loops = pd.read_csv('data/fithic_loops/'+chromosome+'/fithic_filtered.bedpe', sep='\t')
         loops['node1'] = loops.chr1.str.cat([loops.start1.astype(int).astype(str),loops.end1.astype(int).astype(str)],sep='_')
         loops['node2'] = loops.chr2.str.cat([loops.start2.astype(int).astype(str),loops.end2.astype(int).astype(str)],sep='_')
         local_loops = loops.loc[(loops['start1']>lbound)&(loops['end1']>lbound)&(loops['start2']>lbound)&(loops['end2']>lbound),]
@@ -288,22 +296,19 @@ for gene in gene_tss:
 networks = {}
 to_remove = []
 for gene in gene_tss:
-    if os.path.isfile('gene_networks/'+gene+'_network.pkl'):
-        with open('gene_networks/'+gene+'_network.pkl','rb') as f:
+    if os.path.isfile('data/gene_networks/'+gene+'_network.pkl'):
+        with open('data/gene_networks/'+gene+'_network.pkl','rb') as f:
             network = pkl.load(f)
             network = network.simplify(multiple=True, combine_edges='first')
             networks[gene] = deepcopy(network)
     else:
-        print('Gene: ' +gene+ ' not found in gene_networks/')
+        print('Gene: ' +gene+ ' not found in data/gene_networks/')
         to_remove.append(gene)
         #exit()
 
 for gene in set(to_remove):
     del gene_tss[gene]
 
-#load validation data
-ground_truth = pd.read_csv('ABC_perturbed_K562_EGpairs.csv',header=0, sep=',')
-ground_truth = ground_truth.loc[ground_truth['Gene'].isin(gene_tss.keys()),]
 
 def objective_function(p_threshold, networks, gene_tss, abc_threshold, ground_truth, chromosomes, resolution, local_loop_dict):
     total_cm = {'TP':0,'TN':0,'FP':0,'FN':0,'NA':0}
@@ -339,13 +344,14 @@ def p_distribution(gene_tss, local_loops_dict):
 #write filtered networks to file
 pcutoff = 8.71e-11
 for gene in gene_tss:
+    print(gene)
     chromosome, tss = gene_tss[gene]
     pnode = '_'.join([chromosome, str(int(np.floor(tss/resolution)*resolution)), str(int(np.floor(tss/resolution)*resolution+resolution))])
     network = output_network(pcutoff, networks[gene], local_loops_dict[gene], pnode)
     if network != False:
-        network = classify_network(gene, ground_truth, network, pnode, 0.02)
+        network = classify_network(gene, enhancers, network, pnode, 0.02)
         if network!=False:
-            with open('gene_networks_optimized/'+gene+'_network.pkl','wb') as f:
+            with open('data/gene_networks_wd/'+gene+'_network.pkl','wb') as f:
                 pkl.dump(network, f)
         else:
             print(gene+' error filtering edges')
@@ -361,7 +367,7 @@ precision = []
 recall = []
 print('iterating through p vals')
 for p in pvals:
-    f1, prc, rec = objective_function([p], networks, gene_tss, 0.02, ground_truth, chromosomes, 5000, local_loops_dict)
+    f1, prc, rec = objective_function([p], networks, gene_tss, 0.02, enhancers, chromosomes, 5000, local_loops_dict) #enhancers used to be = ground truth
     f1s.append(f1)
     precision.append(prc)
     recall.append(rec)
