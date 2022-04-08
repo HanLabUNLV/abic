@@ -6,14 +6,14 @@ import os
 
 #import gene tss, chromosome info
 gene_tss = {}
-with open('gene_tss.uniq.tsv','r') as f:
+with open('data/gene_tss.uniq.tsv','r') as f:
     for line in f:
         chromosome, gene, tss = line.strip().split('\t')
         gene_tss[gene] = [chromosome, int(tss)]
 
 remove = []
 for gene in gene_tss:
-    if os.path.isfile('gene_networks_chipped/'+gene+'_network.pkl'):
+    if os.path.isfile('gene_networks_wd/'+gene+'_network.pkl'):
         pass
     else:
         remove.append(gene)
@@ -50,7 +50,7 @@ p_e2_e1 = 0
 e2_p_e1 = 0
 
 
-with open('enhancer_chipseq_featurematrix.tsv','r') as f:
+with open('data/enhancer_chipseq_featurematrix.tsv','r') as f:
     tfs = f.readline().strip().split('\t')[1:]
 
 bind_patterns = {}
@@ -244,7 +244,7 @@ for gene in gene_tss:
         midpoint = int(int(end)+int(start))/2
         E3_dist.append(midpoint - tss)
 
-with open('binding_patterns.tsv','w') as f:
+with open('data/binding_patterns.tsv','w') as f:
     f.write('\t'.join(['gene','tf','promoter_only','promoter_e1','promoter_e1_e2','promoter_e2','e1_only','e1_e2','e2_only','none'])+'\n')
     for tf in bind_patterns:
         for i in range(len(genes)):

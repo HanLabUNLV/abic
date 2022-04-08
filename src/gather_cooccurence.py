@@ -3,14 +3,14 @@ import os
 import numpy as np
 
 gene_tss = {}
-with open('gene_tss.uniq.tsv','r') as f:
+with open('data/gene_tss.uniq.tsv','r') as f:
     for line in f:
         chromosome, gene, tss = line.strip().split('\t')
         gene_tss[gene] = [chromosome, int(tss)]
 
 remove = []
 for gene in gene_tss:
-    if os.path.isfile('gene_networks_chipped_labeled/'+gene+'_network_labeled.pkl'):
+    if os.path.isfile('data/gene_networks_wd/'+gene+'_network.pkl'):
         pass
     else:
         remove.append(gene)
@@ -21,7 +21,7 @@ for i in remove:
 #set up empty data structure
 data = {}
 gene = [f for f in gene_tss.keys()][0]
-with open('gene_networks_chipped_labeled/'+gene+'_network_labeled.pkl','rb') as f:
+with open('data/gene_networks_wd/'+gene+'_network.pkl','rb') as f:
     network = pkl.load(f)
 chromosome, tss = gene_tss[gene]
 resolution = 5000
@@ -35,7 +35,7 @@ for tf in network.vs.find(pnode)['tf']:
 
 #populate data structure
 for gene in gene_tss:
-    with open('gene_networks_chipped_labeled/'+gene+'_network_labeled.pkl','rb') as f:
+    with open('data/gene_networks_wd/'+gene+'_network.pkl','rb') as f:
         network = pkl.load(f)
 
     chromosome, tss = gene_tss[gene]    
@@ -53,9 +53,16 @@ for gene in gene_tss:
     
     #identify peaks in promoter 
     p_peaks = {}
+    pmissing=False
     for tf in network.vs.find(pnode)['tf']:
-        p_peaks[tf] = network.vs.find(pnode)['tf'][tf][j]
-
+        try:
+            p_peaks[tf] = network.vs.find(pnode)['tf'][tf][j]
+        except:
+            print(gene+' no promoter found in network/peaks missing from promoter')
+            pmissing = True
+            break
+    if pmissing:
+        continue
     #iter through nodes, get cobinding with promoter
     for n in network.vs:
         if n['role']=='E1':
@@ -86,7 +93,7 @@ for gene in gene_tss:
 
                     
 
-with open('cobinding_chi.tsv','w') as f:
+with open('data/cobinding_chi.tsv','w') as f:
     f.write('\t'.join(['tf','comparison','peak.peak','peak.nopeak','nopeak.peak','nopeak.nopeak'])+'\n')
     for tf in data:
         for comparison in data[tf]:

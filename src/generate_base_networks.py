@@ -22,7 +22,7 @@ with open('data/gene_tss.uniq.tsv','r') as f:
     for line in f:
         chrm, gene, tss = line.strip().split('\t')
         genes[gene] = [chrm,tss]
-valid_chr = ['chr10',  'chr12',  'chr19',  'chr3',  'chr8',  'chrX']
+valid_chr = ['chr1','chr10','chr11','chr12','chr13','chr14','chr15','chr16','chr17','chr18','chr19','chr2','chr20','chr21','chr22','chr3','chr4','chr5','chr6','chr7','chr8','chr9','chrX']
 
 #get gene from cmdline
 gene = parser.parse_args().gene

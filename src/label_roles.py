@@ -2,14 +2,14 @@ import pickle as pkl
 import os
 import numpy as np
 gene_tss = {}
-with open('gene_tss.uniq.tsv','r') as f:
+with open('data/gene_tss.subset1.tsv','r') as f:
     for line in f:
         chromosome, gene, tss = line.strip().split('\t')
         gene_tss[gene] = [chromosome, int(tss)]
 
 remove = []
 for gene in gene_tss:
-    if os.path.isfile('gene_networks_chipped/'+gene+'_network.pkl'):
+    if os.path.isfile('data/gene_networks_wd/'+gene+'_network.pkl'):
         pass
     else:
         remove.append(gene)
@@ -23,7 +23,7 @@ for gene in gene_tss:
     genes.append(gene)
     chromosome, tss = gene_tss[gene]
     #load network
-    with open('gene_networks_chipped/'+gene+'_network.pkl', 'rb') as f:
+    with open('data/gene_networks_wd/'+gene+'_network.pkl', 'rb') as f:
         network = pkl.load(f)
 
     #promoter node
@@ -56,6 +56,6 @@ for gene in gene_tss:
                 if n != network.vs.find(pnode).index:
                     E3.append(n)
                     network.vs.find(n)['role'] = 'E3'
-    with open('gene_networks_chipped/'+gene+'_network_labeled.pkl', 'wb') as f:
+    with open('data/gene_networks_wd/'+gene+'_network.pkl', 'wb') as f:
         network = pkl.dump(network,f)
 

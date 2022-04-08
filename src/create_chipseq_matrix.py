@@ -10,12 +10,13 @@ import os
 
 #load in enhancers
 enhancers = []
-with open('ENCODE_ChIP/PutativeEnhancer.bed','r') as f:
+efile = 'data/subset1_enhancers.bed'
+with open(efile,'r') as f:
     for line in f:
         enhancers.append('_'.join(line.strip().split('\t')))
 
 #read in metadata filter out crispr experiments
-metadata = pd.read_csv('ENCODE_ChIP/metadata.tsv',sep='\t')
+metadata = pd.read_csv('raw_data/ENCODE_ChIP/metadata.tsv',sep='\t')
 metadata = metadata.loc[metadata['Biosample genetic modifications categories']!='insertion',]
 
 #filter data?
@@ -36,11 +37,11 @@ for tf in TF_experiments:
 #find overlaps, change 0s to 1s
 for tf in TF_experiments:
     for exp in TF_experiments[tf]:
-        result = os.system('bedtools intersect -b ENCODE_ChIP/'+exp+'.bed -a ENCODE_ChIP/PutativeEnhancer.bed -u > tmp.bed')
-        with open('tmp.bed','r') as f:
+        result = os.system('bedtools intersect -b raw_data/ENCODE_ChIP/'+exp+'.bed -a '+efile+' -u > data/tmp.bed')
+        with open('data/tmp.bed','r') as f:
             enh_names = ['_'.join(l.strip().split('\t')) for l in  f.readlines()]
         if len(enh_names)>0:
             #find enhancers, set values to 1
             tf_matrix.loc[tf_matrix['enhancer'].isin(enh_names),tf] = 1
 
-tf_matrix.to_csv('enhancer_chipseq_featurematrix.tsv',sep='\t')
+tf_matrix.to_csv('data/enhancer_chipseq_featurematrix.subset1.tsv',sep='\t', index=False)

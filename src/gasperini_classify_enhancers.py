@@ -13,7 +13,7 @@ df_all['significant']=0
 df_all.loc[df_all['_merge']=='both', 'significant']=1
 df_all.drop(columns=['s2b.chr','s2b.start','s2b.stop','overlap','_merge'], inplace=True)
 df_all.rename(columns={'stop':'end'})
-df_all.to_csv('data/enhancers.gas.class.tsv',sep='\t')
+df_all.to_csv('data/enhancers.gas.class.subset1.tsv',sep='\t')
 
 
 

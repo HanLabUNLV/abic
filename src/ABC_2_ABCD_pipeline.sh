@@ -49,5 +49,14 @@ done
 
 #filter the base networks 
 #node01
-ls data/gene_tss_parts/ | parallel --max-args=1 -j 35 'python src/optimize_loop_pvalue.py data/enhancers.gas.class.tsv --gene_tss {1}' 
+#ls data/gene_tss_parts/ | parallel --max-args=1 -j 35 'python src/optimize_loop_pvalue.py data/enhancers.gas.class.tsv --gene_tss data/gene_tss_parts/{1}' 
+
+#subroutine to gather ChIPSeq data and map it to a feature matrix we'll use to train the ML to predict true enhancers
+#first create a bedfile from enhancers matrix 
+#cut -f2,3,4 data/enhancers.gas.class.tsv | sort -k1 -k2 | uniq > data/enhancer_table.bed
+#python src/create_enhancer_bed.py
+#python src/create_chipseq_matrix.py
+
+
+
 
