@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import time, os
 import joblib
@@ -16,17 +17,29 @@ from sklearn.decomposition import PCA, NMF
 from sklearn.manifold import TSNE
 from sklearn.feature_selection import SelectKBest, chi2
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.metrics import precision_recall_curve, balanced_accuracy_score, make_scorer, f1_score
+from sklearn.metrics import precision_recall_curve, auc, average_precision_score, balanced_accuracy_score, make_scorer, f1_score
 from sklearn.svm import LinearSVC, SVC
 from sklearn.linear_model import LogisticRegression
 import pandas as pd
 import xgboost as xgb
+import optuna
+from optuna import create_study, logging
+from optuna.pruners import MedianPruner
+from optuna.integration import XGBoostPruningCallback
+from collections import Counter
+
+RANDOM_SEED = 42
 
 tstart = time.time()
 pid = os.getpid()
+
+
+
+
+
 #helper class that allows you to iterate over multiple classifiers within the nested for loop
 class EstimatorSelectionHelper:
-    def __init__(self, models, params, dimrs=None, dimr_params=None):
+    def __init__(self, models, params, storage=None, dimrs=None, dimr_params=None):
         if not set(models.keys()).issubset(set(params.keys())):
             missing_params = list(set(models.keys()) - set(params.keys()))
             raise ValueError("Some estimators are missing parameters: %s" % missing_params)
@@ -39,25 +52,23 @@ class EstimatorSelectionHelper:
         self.scores = {}
         self.best_estimator_ = None
         self.best_estimators_ = {}
+        self.storage = storage
+        self.studies = {}
 
     def fit(self, X, y, cv=3, n_jobs=10, verbose=1, scoring=None, refit=False):
         for key in self.keys:
             if self.dimrs is None:
-                print("Running BayesSearchCV for %s." % key)
-                model = self.models[key]
-                params = self.params[key]
-                pipeline = Pipeline([(key,model)])
-                gs_params = {}
-                for i in params:
-                    gs_params[key+'__'+i] = params[i]
-                #gs = GridSearchCV(model, params, cv=cv, n_jobs=n_jobs,
-                #              verbose=verbose, scoring=scoring, refit=refit,
-                #              return_train_score=True)
-                gs = BayesSearchCV(pipeline, gs_params, cv=cv, n_jobs=n_jobs,
-                        verbose=verbose, scoring=scoring, refit=refit,
-                        return_train_score=True)
-                gs.fit(X,y)
-                self.grid_searches[key] = gs    
+                print("\nRunning Optuna for %s." % key, flush=True)
+                #run Optuna search with inner search CV on outer split data 
+                pruner = optuna.pruners.MedianPruner(n_warmup_steps=5)
+                
+                # xgb study
+                study_name = key
+                #optuna.delete_study(study_name=study_name, storage=storage) # if there is existing study remove.
+                study = optuna.create_study(study_name=study_name, direction="maximize", storage=storage, pruner=pruner, load_if_exists=True)
+                study.optimize(Objective(X_split, y_split, key, cv, scoring), n_trials=2000, timeout=600, n_jobs=4)  # will run 4 process to cover 2000 approx trials 
+
+                self.studies[key] = study 
             else:
                 print("Running BayesSearchCV for %s." % key)
                 for dimr_label in self.dimrs:
@@ -208,6 +219,7 @@ class EstimatorSelectionHelper:
                   outdir[dimr_name+ '__' +dr_param_names[i]] = [dr_param_vals[i]]
             return pd.DataFrame.from_dict(outdir)
             #print(param_names)
+
 #logfile
 #out = open('../run.RF/logs/cross_validation.log','w')
 def plot_pr_curves(temp_estimators, X, y, abc_score, distance, out_idx, outdir):
@@ -268,52 +280,6 @@ def plot_coefficients(classifier, feature_names, top_features=20):
 
 
 #X, y = load_digits(return_X_y=True)
-
-##################################
-#import our data, then format it #
-##################################
-
-data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini2019.at_scale.ABC.TF.erole.txt',sep='\t', header=0)
-#data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini2019.at_scale.ABC.TF.eindirect.txt',sep='\t', header=0)
-#data2 = data2.loc[data2['e1']==1,]
-#data2 = data2.loc[(data2['e2']==1) | (data2['e3']==1),]
-#data2['distance'] = data2.apply(lambda row: np.absolute(row.start_x - row.TargetGeneTSS), axis=1)
-
-features_gasperini = data2
-ActivityFeatures = features_gasperini[['normalized_h3K27ac', 'normalized_dhs', 'activity_base_x', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile', 'TargetGeneIsExpressed', 'distance']].copy()
-ActivityFeatures = ActivityFeatures.dropna()
-#hicfeatures = features_gasperini[['hic_contact', 'ABC.Score.Numerator', 'ABC.Score']].copy()
-hicfeatures = features_gasperini[['hic_contact','ABC.Score']].copy()
-hicfeatures = hicfeatures.dropna()
-hicfeatures['hic_contact'] = np.log1p(hicfeatures['hic_contact'])
-TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)').copy()
-TFfeatures = TFfeatures.dropna()
-#cobindingfeatures = features_gasperini.filter(regex='(_co)').copy()
-#cobindingfeatures = cobindingfeatures.dropna()
-crisprfeatures = features_gasperini[['EffectSize', 'Significant', 'pValue' ]].copy()
-crisprfeatures = crisprfeatures.dropna()
-features = ActivityFeatures.copy()
-features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
-features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
-data = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
-ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
-hicfeatures = data.iloc[:, ActivityFeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]]
-TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
-crisprfeatures = data.iloc[:, -3:]
-f1 = set(list(features.columns))
-features = data.iloc[:, :data.shape[1]-3]
-f2 = set(list(features.columns))
-target = crisprfeatures['Significant'].astype(int)
-
-abc_score = features['ABC.Score'].values
-distance = features['distance'].values
-
-features.drop(columns=['ABC.Score'], axis=1, inplace=True)
-feature_labels = list(features.columns)
-
-X = features
-y = target
-
 #print(np.isnan(y).any())
 #####################################
 # define the classifiers and params #
@@ -322,24 +288,15 @@ y = target
 #in this script we use diff params for bayescv
 
 models = {
-    'RandomForestClassifier':RandomForestClassifier(class_weight='balanced'),
-#    'SVC': SVC(max_iter=1500000),
-    'LogisticRegression':LogisticRegression(solver='liblinear', class_weight="balanced"),
     'xgb': xgb.XGBClassifier( 
-      early_stopping_rounds=10,
-      learning_rate=0.2,
       objective= 'binary:logistic',
       nthread=4,
     ),
+    'rf':RandomForestClassifier(class_weight='balanced'),
+    #'lr':LogisticRegression(solver='liblinear', class_weight="balanced"),
 }
 
 params = {
-    'RandomForestClassifier':{'n_estimators': Integer(100,300),'min_samples_leaf':Integer(1,20),
-      'max_depth': Integer(5, 12),
-      'min_samples_split': Integer(2, 10)
-    },
-#    'SVC': {'C':Real(1e-6,1e6, prior='log-uniform'),'gamma': Real(1e-6, 1e+1, prior='log-uniform'),'kernel': Categorical(['linear', 'sigmoid', 'rbf'])},
-    'LogisticRegression':{'C':Real(1e-6,1e5, prior='log-uniform')},
     'xgb':{
       'n_estimators' : Integer(20, 100, 'uniform'),
       'max_depth' : Integer(1, 5, 'uniform'),
@@ -348,6 +305,11 @@ params = {
       'subsample' : Real(0.5, 1, 'uniform'),
       'gamma': (1e-9, 0.1, 'log-uniform')
     },   
+    'rf':{'n_estimators': Integer(100,300),'min_samples_leaf':Integer(1,20),
+      'max_depth': Integer(5, 12),
+      'min_samples_split': Integer(2, 10)
+    },
+    #'lr':{'C':Real(1e-6,1e5, prior='log-uniform')},
 }
 
 dim_reductions = {
@@ -362,87 +324,281 @@ dimr_params = {
 #    'NMF':{'n_components':Integer(1,50)},
     'SelectKBest':['passthrough'],
 }
-#######################
-# nested cv structure #
-#######################
-test_sz = 0.2
-inner_split = StratifiedKFold(n_splits=3, shuffle=True, random_state=1)
-outer_split = StratifiedKFold(n_splits=3, shuffle=True, random_state=2)
-outer_results = pd.DataFrame()
-outer_index = 0
-best_estimators = {}
-for split in outer_split.split(X,y):
-    #get indices for outersplit
-    train_idx, test_idx = split
 
-    #outer split data
-    X_split = X.iloc[train_idx, :].copy()
-    y_split = y.iloc[train_idx].copy()
+
+class Objective:
+  def __init__(self, X, y, classifier, cv, scoring):
+    # Hold this implementation specific arguments as the fields of the class.
+    self.X = X 
+    self.y = y
+    self.classifier = classifier
+    self.cv = cv
+    self.scoring = scoring
+
+  def __call__(self, trial):
+    # Calculate an objective value by using the extra arguments.
+    counter = Counter(self.y)
+    estimate = counter[0] / counter[1]
+    cls_weight = (self.y.shape[0] - np.sum(self.y)) / np.sum(self.y)
+
+    dtrain = xgb.DMatrix(self.X, label=self.y)
+
+    param = {}
+    if self.classifier == "xgb":
+      param = { 
+          "verbosity": 0,
+          "random_state" : RANDOM_SEED,
+          "objective": "binary:logistic",
+          # use exact for small featuresset.
+          "tree_method": "auto",
+          # n_estimator
+          "num_boost_round": trial.suggest_int("num_boost_round", 50, 400),
+          # defines booster
+          "booster": trial.suggest_categorical("booster", ["gbtree", "dart"]),
+          # maximum depth of the tree, signifies complexity of the tree.
+          "max_depth": trial.suggest_int("max_depth", 2, 10),
+          # minimum child weight, larger the term more conservative the tree.
+          "min_child_weight": trial.suggest_int("min_child_weight", 1, 20),
+          # learning rate
+          "eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
+          # sampling ratio for training features.
+          "subsample": trial.suggest_float("subsample", 0.4, 0.8),
+          # sampling according to each tree.
+          "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1),
+          # L2 regularization weight.
+          "lambda": trial.suggest_float("lambda", 1e-9, 0.01, log=True),
+          # L1 regularization weight.
+          "alpha": trial.suggest_float("alpha", 1e-9, 0.2, log=True),
+          # defines how selective algorithm is.
+          "gamma": trial.suggest_float("gamma", 1e-9, 1.0, log=True),
+          "grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
+          "scale_pos_weight": np.sqrt(cls_weight),
+          "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
+          "max_delta_step" : 1,
+      }
+      if param["booster"] == "dart":
+          param["sample_type"] = trial.suggest_categorical("sample_type", ["uniform", "weighted"])
+          param["normalize_type"] = trial.suggest_categorical("normalize_type", ["tree", "forest"])
+          param["rate_drop"] = trial.suggest_float("rate_drop", 1e-8, 1.0, log=True)
+          param["skip_drop"] = trial.suggest_float("skip_drop", 1e-8, 1.0, log=True)
+    elif self.classifier == "rf":
+      param = { 
+          "verbosity": 0,
+          "random_state" : RANDOM_SEED,
+          "objective": "binary:logistic",
+          # use exact for small featuresset.
+          "tree_method": "auto",
+          # num_parallel_tree
+          "num_parallel_tree": trial.suggest_int("num_parallel_tree", 50, 300),
+          # maximum depth of the tree, signifies complexity of the tree.
+          "max_depth": trial.suggest_int("max_depth", 2, 10),
+          # minimum child weight, larger the term more conservative the tree.
+          "min_child_weight": trial.suggest_int("min_child_weight", 1, 20),
+          # learning rate
+          "eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
+          # sampling ratio for training features.
+          "subsample": trial.suggest_float("subsample", 0.4, 0.8),
+          # sampling by node
+          "colsample_bynode": trial.suggest_float("colsample_bynode", 0.5, 0.99),
+          "scale_pos_weight": np.sqrt(cls_weight),
+          "eval_metric" : 'map',
+          "max_delta_step" : 1,
+      }
+      # booster is set to "gbtree"
+      param['booster'] = "gbtree"
+      # num_boost_round(n_estimator) is set to 1 to make it RF instead of boosting. 
+      param['num_boost_round'] = 1
+
+    # set up cross-validation
+    pruning_callback = optuna.integration.XGBoostPruningCallback(trial, "test-map")
+    cv_results = xgb.cv(param, dtrain, nfold=3, stratified=True, callbacks=[pruning_callback])
+
+    # Save cross-validation results.
+    cv_results.to_csv(outdir+'/'+'cv.'+filenamesuffix+'.'+str(pid)+'.'+str(trial.number)+'.txt', index=False)
+
+    mean_map = cv_results["test-map-mean"].values[-1]
+    return mean_map
+
+
+
+# python src/mira_cross_val_bayescv.eroles.xgb.optuna.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run2 --port 16147
+if __name__ == "__main__":
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--dir', required=True, help="directory containing edgelist and vertices files")
+  parser.add_argument('--outdir', default='.', help="directory containing edgelist and vertices files")
+  parser.add_argument('--chr', default='all', help="chromosome")
+  parser.add_argument("--port", required=True, help="postgres port for storage")
+
+  args=parser.parse_args()
+  pid = os.getpid()
+
+  base_directory = args.dir
+  chromosome = args.chr
+  outdir = args.outdir
+  postgres_port = args.port
+
+  filenamesuffix = ''
+
+  #################################
+  #import our data, then format it #
+  ##################################
+
+  data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.erole.txt',sep='\t', header=0)
+  #data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.eindirect.txt',sep='\t', header=0)
+  #data2 = data2.loc[data2['e1']==1,]
+  #data2 = data2.loc[(data2['e2']==1) | (data2['e3']==1),]
+  #data2['distance'] = data2.apply(lambda row: np.absolute(row.start_x - row.TargetGeneTSS), axis=1)
+
+  features_gasperini = data2
+  ActivityFeatures = features_gasperini[['normalized_h3K27ac', 'normalized_dhs', 'activity_base_x', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile', 'TargetGeneIsExpressed', 'distance']].copy()
+  ActivityFeatures = ActivityFeatures.dropna()
+  #hicfeatures = features_gasperini[['hic_contact', 'ABC.Score.Numerator', 'ABC.Score']].copy()
+  hicfeatures = features_gasperini[['hic_contact','ABC.Score']].copy()
+  hicfeatures = hicfeatures.dropna()
+  hicfeatures['hic_contact'] = np.log1p(hicfeatures['hic_contact'])
+  TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)').copy()
+  TFfeatures = TFfeatures.dropna()
+  #cobindingfeatures = features_gasperini.filter(regex='(_co)').copy()
+  #cobindingfeatures = cobindingfeatures.dropna()
+  crisprfeatures = features_gasperini[['EffectSize', 'Significant', 'pValue' ]].copy()
+  crisprfeatures = crisprfeatures.dropna()
+  features = ActivityFeatures.copy()
+  features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
+  features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
+  data = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
+  ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
+  hicfeatures = data.iloc[:, ActivityFeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]]
+  TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
+  crisprfeatures = data.iloc[:, -3:]
+  f1 = set(list(features.columns))
+  features = data.iloc[:, :data.shape[1]-3]
+  f2 = set(list(features.columns))
+  target = crisprfeatures['Significant'].astype(int)
+
+  abc_score = features['ABC.Score'].values
+  distance = features['distance'].values
+
+  features.drop(columns=['ABC.Score'], axis=1, inplace=True)
+  feature_labels = list(features.columns)
+
+  X = features
+  y = target
+
     
-    normalizer = preprocessing.MinMaxScaler()
-    scaler = normalizer.fit(X_split)
-    X_split = scaler.transform(X_split)
+    
+  #######################
+  # nested cv structure #
+  #######################
+  inner_split = StratifiedKFold(n_splits=3, shuffle=True, random_state=RANDOM_SEED)
+  outer_split = StratifiedKFold(n_splits=3, shuffle=True, random_state=RANDOM_SEED)
+  outer_results = pd.DataFrame()
+  outer_index = 0
+  best_estimators = {}
+  for split in outer_split.split(X,y):
+      #get indices for outersplit
+      train_idx, test_idx = split
 
-    X_test = scaler.transform(X.iloc[test_idx,:].copy())
-    y_test = y.iloc[test_idx].copy()
+      #outer split data
+      X_split = X.iloc[train_idx, :].copy()
+      y_split = y.iloc[train_idx].copy()
 
-    cls_weight = (y_split.shape[0] - np.sum(y_split)) / np.sum(y_split)
-    print("cls_weight: ")
-    print(cls_weight)
-    params['xgb']['scale_pos_weight'] = [np.sqrt(cls_weight)]
+      normalizer = preprocessing.MinMaxScaler()
+      scaler = normalizer.fit(X_split)
+      X_split = scaler.transform(X_split)
 
-    #grid search outer split data with inner search CV
-    #init helper
-    #helper = EstimatorSelectionHelper(models, params, dimrs=dim_reductions, dimr_params=dimr_params)
-    helper = EstimatorSelectionHelper(models, params)
-    #helper fit on inner cv
-    helper.fit(X_split, y_split, cv=inner_split, scoring=make_scorer(f1_score), n_jobs=40, refit=True)
-    #get best performing models 
-    helper.score_summary(sort_by='mean_score')
-    #helper performs the inner gridsearch by itself, but by using the best_estimator(method='test') command, we can run the outer gridsearch using test data
-    #clf = helper.best_estimator(method='test',X=X[test_idx,:], y=y[test_idx])
-    clf = helper.best_estimator(method='test',X=X_test, y=y_test)
-    best_params = helper.best_params()
-    #helper also stores the best estimator of each combination of dimr and clf, so store the most accurate ones    
-    temp_estimators = helper.best_estimators_
+      X_test = X.iloc[test_idx,:].copy()
+      X_test_columns = X_test.columns
+      X_test_index = X_test.index
+      X_test = scaler.transform(X_test)
+      y_test = y.iloc[test_idx].copy()
 
-    #plot pr curve
-    plot_pr_curves(temp_estimators, X_test, y_test, abc_score[test_idx], distance[test_idx], outer_index, 'data/pr_curves_c/xgb/')
-    outer_index += 1
+      storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
+      helper = EstimatorSelectionHelper(models, params, storage=storage)
+      helper.fit(X_split, y_split, cv=None, scoring=None, n_jobs=20)
 
-    for be in temp_estimators:
-        acc = temp_estimators[be]['test_f1']
-        if be not in best_estimators:
-            best_estimators[be] = temp_estimators[be]
-        elif best_estimators[be]['test_f1'] < acc:
-            best_estimators[be] = temp_estimators[be]
-        importances = temp_estimators[be]['importances']
-        if importances is not None:
-            pd.DataFrame(data=importances, index=feature_labels).to_csv('data/trained_models/mira_data/'+str(pid)+'.importance.'+be+'.'+str(outer_results.shape[0])+'.txt')
-             
-    #return the best performing model on test data
-    #bal_accuracy = balanced_accuracy_score(y[test_idx], clf.predict(X[test_idx,:]))
-    bal_accuracy = balanced_accuracy_score(y_test, clf.predict(X_test))
-    test_f1_score = f1_score(y_test, clf.predict(X_test))
-    best_params['bal_accuracy'] = [bal_accuracy]
-    best_params['f1_score'] = [test_f1_score]
-    outer_results = pd.concat([outer_results,best_params])
+      for classifier, study in helper.studies.items():
+          print(classifier)
+          print(study)
+          print("Number of finished trials for  %s: %d." % (classifier, len(study.trials)))
+          print("Best trial:")
+          trial = study.best_trial
 
-    #fnames = data1.loc[:,data1.columns != 'sig'].columns[[int(x[1:]) for x in clf[:-1].get_feature_names_out()]].tolist()
-    #fweights = clf.named_steps[clf_label].coef_.ravel()
-    #frank = rank(abs(clf.named_steps[clf_label].coef_.ravel()))
-    #for i in range(0,len(fnames)):
-    #    feature = fnames[i]
-    #    if feature not in feature_ranks:
-    #        feature_ranks[feature] = fweights[i]*frank[i]/len(frank)
-    #    else:
-    #        feature_ranks[feature] += fweights[i]*frank[i]/len(frank)
-pd.set_option('display.max_columns', None) 
-print(outer_results) 
-print(best_estimators)
-outer_results.to_csv('data/trained_models/mira_data/'+str(pid)+'.outer_results.txt')
-#save best estimators 
-for est in best_estimators:
-    joblib.dump(best_estimators[est]['clf'], 'data/trained_models/mira_data/'+str(pid)+'.'+est+'.pkl')
-print('Total runtime: ' + str(time.time() - tstart))    
-exit()
+          print("  Value: {}".format(trial.value))
+          print("  Params: ")
+          for key, value in trial.params.items():
+              print("    {}: {}".format(key, value))
+
+
+          params = trial.params
+
+          #get best performing models 
+          #helper.score_summary(sort_by='mean_score')
+
+          #helper performs the inner gridsearch by itself, but by using the best_estimator(method='test') command, we can run the outer gridsearch using test data
+          #clf = helper.best_estimator(method='test',X=X[test_idx,:], y=y[test_idx])
+          #clf = helper.best_estimator(method='test',X=X_test, y=y_test)
+          #best_params = helper.best_params()
+          #helper also stores the best estimator of each combination of dimr and clf, so store the most accurate ones    
+          #temp_estimators = helper.best_estimators_
+
+          counter = Counter(y_split)
+          estimate = counter[0] / counter[1]
+          cls_weight = (y_split.shape[0] - np.sum(y_split)) / np.sum(y_split)
+          xgb_clf_tuned_2 = xgb.XGBClassifier(**params, scale_pos_weight=np.sqrt(cls_weight),
+                                          random_state=RANDOM_SEED, n_jobs=1)
+          xgb_clf_tuned_2.fit(X_split, y_split);
+
+          #for be in temp_estimators:
+          #    acc = temp_estimators[be]['test_f1']
+          #    if be not in best_estimators:
+          #        best_estimators[be] = temp_estimators[be]
+          #    elif best_estimators[be]['test_f1'] < acc:
+          #        best_estimators[be] = temp_estimators[be]
+          #    importances = temp_estimators[be]['importances']
+          #    if importances is not None:
+          #        pd.DataFrame(data=importances, index=feature_labels).to_csv('data/trained_models/mira_data/'+str(pid)+'.importance.'+be+'.'+str(outer_results.shape[0])+'.txt')
+                   
+          #return the best performing model on test data
+       
+          test_predictions = xgb_clf_tuned_2.predict(X_test)
+          test_pd = pd.DataFrame(test_predictions, columns=['pred'], index=y_test.index)
+          y_res = pd.merge(test_pd, y_test, left_index=True, right_index=True)
+          res = pd.merge(y_res, pd.DataFrame(X_test, columns=X_test_columns, index=X_test_index), left_index=True, right_index=True)
+          res.to_csv(outdir+'/'+'confusion.'+filenamesuffix+'.'+str(pid)+'.txt', index=False)
+
+          fpr, tpr, thresholds = precision_recall_curve(y_test, test_predictions, pos_label = 1)
+          aucpr = auc(fpr, tpr)
+          average_precision = average_precision_score(y_test, test_predictions)
+          average_precision_prob = average_precision_score(y_test, xgb_clf_tuned_2.predict_proba(X_test)[:,1])
+          bal_accuracy = balanced_accuracy_score(y_test, test_predictions)
+          test_f1_score = f1_score(y_test, test_predictions)
+          params['aucpr'] = [aucpr]
+          params['average_precision'] = [average_precision]
+          params['average_precision_prob'] = [average_precision_prob]
+          params['bal_accuracy'] = [bal_accuracy]
+          params['f1_score'] = [test_f1_score]
+          params['classifier'] = classifier
+          outer_results = pd.concat([outer_results,pd.DataFrame.from_dict(params)])
+          #fnames = data1.loc[:,data1.columns != 'sig'].columns[[int(x[1:]) for x in xgb_clf_tuned_2[:-1].get_feature_names_out()]].tolist()
+          #fweights = clf.named_steps[clf_label].coef_.ravel()
+          #frank = rank(abs(clf.named_steps[clf_label].coef_.ravel()))
+          #for i in range(0,len(fnames)):
+          #    feature = fnames[i]
+          #    if feature not in feature_ranks:
+          #        feature_ranks[feature] = fweights[i]*frank[i]/len(frank)
+          #    else:
+          #        feature_ranks[feature] += fweights[i]*frank[i]/len(frank)
+          #plot pr curve
+          #plot_pr_curves([xgb_clf_tuned_2], X_test, y_test, abc_score[test_idx], distance[test_idx], outer_index, 'data/pr_curves_c/xgb/')
+          outer_index += 1
+
+
+  pd.set_option('display.max_columns', None) 
+  print(outer_results) 
+  print(best_estimators)
+  outer_results.to_csv('data/trained_models/mira_data/'+str(pid)+'.outer_results.txt')
+  #save best estimators 
+  for est in best_estimators:
+      joblib.dump(best_estimators[est]['clf'], 'data/trained_models/mira_data/'+str(pid)+'.'+est+'.pkl')
+  print('Total runtime: ' + str(time.time() - tstart))    
+
