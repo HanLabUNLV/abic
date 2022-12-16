@@ -424,7 +424,7 @@ class Objective:
     cv_results = xgb.cv(param, dtrain, nfold=3, stratified=True, callbacks=[pruning_callback])
 
     # Save cross-validation results.
-    cv_results.to_csv(outdir+'/'+'cv.'+filenamesuffix+'.'+str(pid)+'.'+str(trial.number)+'.txt', index=False)
+    cv_results.to_csv(outdir+'/'+'cv.'+filenamesuffix+'.'+str(pid)+'.'+str(trial.number)+'.txt', index=False, sep='\t')
 
     mean_map = cv_results["test-map-mean"].values[-1]
     return mean_map
@@ -516,19 +516,22 @@ if __name__ == "__main__":
       #outer split data
       X_split = X.iloc[train_idx, :].copy()
       y_split = y.iloc[train_idx].copy()
+      X_split.to_csv(outdir +'/'+ str(pid)+'.Xsplit.'+str(outer_index)+'.txt', sep='\t')
+      y_split.to_csv(outdir +'/'+ str(pid)+'.ysplit.'+str(outer_index)+'.txt', sep='\t')
 
       cols = X_split.columns
       scaler = preprocessing.MinMaxScaler()
       scaler.fit(X_split)
       X_split = pd.DataFrame(scaler.transform(X_split), columns = cols)
+      import joblib
+      joblib.dump(scaler, outdir +'/'+ str(pid)+'.scaler.'+str(outer_index)+'.gz')
 
       X_test = X.iloc[test_idx,:].copy()
-      X_test_columns = X_test.columns
-      X_test_index = X_test.index
-      X_test = pd.DataFrame(scaler.transform(X_test), columns = cols)
       y_test = y.iloc[test_idx].copy()
-      X_test.to_csv(outdir +'/'+ str(pid)+'.Xtest.'+str(outer_index)+'.txt')
-      y_test.to_csv(outdir +'/'+ str(pid)+'.ytest.'+str(outer_index)+'.txt')
+      X_test.to_csv(outdir +'/'+ str(pid)+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
+      y_test.to_csv(outdir +'/'+ str(pid)+'.ytest.'+str(outer_index)+'.txt', sep='\t')
+      X_test = pd.DataFrame(scaler.transform(X_test), columns = cols)
+      dtest = xgb.DMatrix(X_test) 
 
       storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
       helper = EstimatorSelectionHelper(models, params, storage=storage)
@@ -574,7 +577,7 @@ if __name__ == "__main__":
           lst_vars_in_model = xgb_clf_tuned_2.feature_names
           print(lst_vars_in_model)
           featurenames = pd.DataFrame({"features":lst_vars_in_model})
-          featurenames.to_csv(outdir+'/'+'featurenames'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False)
+          featurenames.to_csv(outdir+'/'+'featurenames'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
           best_ntree_limit = xgb_clf_tuned_2.best_ntree_limit
           print(best_ntree_limit)
           xgb_clf_tuned_2.save_model('data/trained_models/mira_data/save'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.json')
@@ -592,13 +595,13 @@ if __name__ == "__main__":
                    
           #return the best performing model on test data
           
-          dtest = xgb.DMatrix(X_test) 
           y_pred_prob = xgb_clf_tuned_2.predict(dtest)
           y_pred = [round(value) for value in y_pred_prob]
           test_pd = pd.DataFrame(y_pred, columns=['pred'], index=y_test.index)
           y_res = pd.merge(test_pd, y_test, left_index=True, right_index=True)
-          res = pd.merge(y_res, pd.DataFrame(X_test, columns=X_test_columns, index=X_test_index), left_index=True, right_index=True)
-          res.to_csv(outdir+'/'+'confusion.'+filenamesuffix+'.'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False)
+          #res = pd.merge(y_res, pd.DataFrame(X_test, columns=X_test_columns, index=X_test_index), left_index=True, right_index=True)
+          res = pd.merge(y_res, X_test, left_index=True, right_index=True)
+          res.to_csv(outdir+'/'+'confusion.'+filenamesuffix+'.'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
           # Data to plot precision - recall curve
           precision, recall, thresholds = precision_recall_curve(y_test, y_pred_prob, pos_label = 1)
           print(precision)
@@ -630,7 +633,7 @@ if __name__ == "__main__":
   pd.set_option('display.max_columns', None) 
   print(outer_results) 
   print(best_estimators)
-  outer_results.to_csv('data/trained_models/mira_data/'+str(pid)+'.outer_results.txt')
+  outer_results.to_csv('data/trained_models/mira_data/'+str(pid)+'.outer_results.txt', sep='\t')
   #save best estimators 
   for est in best_estimators:
       joblib.dump(best_estimators[est]['clf'], 'data/trained_models/mira_data/'+str(pid)+'.'+est+'.pkl')

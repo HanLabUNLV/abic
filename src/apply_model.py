@@ -424,19 +424,22 @@ class Objective:
     cv_results = xgb.cv(param, dtrain, nfold=3, stratified=True, callbacks=[pruning_callback])
 
     # Save cross-validation results.
-    cv_results.to_csv(outdir+'/'+'cv.'+filenamesuffix+'.'+str(pid)+'.'+str(trial.number)+'.txt', index=False)
+    cv_results.to_csv(outdir+'/'+'cv.'+filenamesuffix+'.'+str(pid)+'.'+str(trial.number)+'.txt', index=False, sep='\t')
 
     mean_map = cv_results["test-map-mean"].values[-1]
     return mean_map
 
 
+# python src/apply_model.py  --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run --modelfile /data8/han_lab/mhan/abcd/data/trained_models/mira_data/save38667.xgb.0.json --scalerfile /data8/han_lab/mhan/abcd/run2/38667.scaler.0.gz --features /data8/han_lab/mhan/abcd/run2/38667.Xtest.0.txt --targets /data8/han_lab/mhan/abcd/run2/38667.ytest.0.txt --featurenames /data8/han_lab/mhan/abcd/run2/featurenames38667.xgb.0.txt
 
-# python -i src/apply_model.py  --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run --modelfile /data8/han_lab/mhan/abcd/data/trained_models/mira_data/save35212.xgb.0.json --features /data8/han_lab/mhan/abcd/run2/35212.Xtest.0.txt --targets /data8/han_lab/mhan/abcd/run2/35212.ytest.0.txt --featurenames /data8/han_lab/mhan/abcd/run2/featurenames35212.xgb.0.txt 
+# python -i src/apply_model.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run2 --modelfile /data8/han_lab/mhan/abcd/data/trained_models/mira_data/save38667.xgb.0.json --scalerfile /data8/han_lab/mhan/abcd/run2/38667.scaler.0.gz --features /data8/han_lab/mhan/abcd/data/Fulco/Fulco2019.CRISPR.ABC.TF.txt --targets /data8/han_lab/mhan/abcd/data/Fulco/Fulco2019.CRISPR.ABC.TF.target.txt --featurenames /data8/han_lab/mhan/abcd/run2/featurenames38667.xgb.0.txt
+
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--dir', required=True, help="directory containing edgelist and vertices files")
   parser.add_argument('--outdir', default='.', help="directory containing edgelist and vertices files")
   parser.add_argument('--chr', default='all', help="chromosome")
+  parser.add_argument('--scalerfile', required=True, help="scaler saved after training in json file")
   parser.add_argument('--modelfile', required=True, help="model saved after training in json file")
   parser.add_argument('--features', required=True, help="feature matrix ")
   parser.add_argument('--targets', help="target truth to compare for evaluation")
@@ -448,6 +451,7 @@ if __name__ == "__main__":
   base_directory = args.dir
   chromosome = args.chr
   outdir = args.outdir
+  scalerfile = args.scalerfile
   modelfile = args.modelfile
   features = args.features
   targets = args.targets
@@ -459,15 +463,23 @@ if __name__ == "__main__":
   #import our data, then format it #
   ##################################
 
-  X_test = pd.read_csv(features)
+  X_test = pd.read_csv(features, sep='\t')
   X_test = X_test.loc[:,~X_test.columns.str.match("Unnamed")]
-  y_test = pd.read_csv(targets)
+  y_test = pd.read_csv(targets, sep='\t')
   y_test = y_test.loc[:,~y_test.columns.str.match("Unnamed")]
+
+  # load featurenames we need
+  featurenames_in_training = pd.read_csv(featurenames,sep='\t')
+  X_test = X_test.reindex(columns = featurenames_in_training['features'])
+
+  # load preprocessor 
+#  scaler = joblib.load(scalerfile)
+#  cols = X_test.columns
+#  X_test = pd.DataFrame(scaler.transform(X_test), columns = cols)
 
   # load model
   xgb_clf_tuned_2 = xgb.Booster()
   xgb_clf_tuned_2.load_model(modelfile)    
-  featurenames_in_training = pd.read_csv(featurenames,sep='\t')
   best_ntree_limit = xgb_clf_tuned_2.best_ntree_limit
 
   #for be in temp_estimators:
@@ -483,6 +495,7 @@ if __name__ == "__main__":
   #return the best performing model on test data
   
   dtest = xgb.DMatrix(X_test) 
+  y_test = y_test.iloc[:, 0].replace({'True': 1, 'False': 0})
   y_pred_prob = xgb_clf_tuned_2.predict(dtest)
   y_pred = [round(value) for value in y_pred_prob]
   # Data to plot precision - recall curve
