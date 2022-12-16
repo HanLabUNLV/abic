@@ -458,6 +458,7 @@ if __name__ == "__main__":
   ##################################
 
   data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.erole.txt',sep='\t', header=0)
+  data2 = data2.loc[:,~data2.columns.str.match("Unnamed")]
   #data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.eindirect.txt',sep='\t', header=0)
   #data2 = data2.loc[data2['e1']==1,]
   #data2 = data2.loc[(data2['e2']==1) | (data2['e3']==1),]
@@ -516,15 +517,18 @@ if __name__ == "__main__":
       X_split = X.iloc[train_idx, :].copy()
       y_split = y.iloc[train_idx].copy()
 
-      normalizer = preprocessing.MinMaxScaler()
-      scaler = normalizer.fit(X_split)
-      X_split = scaler.transform(X_split)
+      cols = X_split.columns
+      scaler = preprocessing.MinMaxScaler()
+      scaler.fit(X_split)
+      X_split = pd.DataFrame(scaler.transform(X_split), columns = cols)
 
       X_test = X.iloc[test_idx,:].copy()
       X_test_columns = X_test.columns
       X_test_index = X_test.index
-      X_test = scaler.transform(X_test)
+      X_test = pd.DataFrame(scaler.transform(X_test), columns = cols)
       y_test = y.iloc[test_idx].copy()
+      X_test.to_csv(outdir +'/'+ str(pid)+'.Xtest.'+str(outer_index)+'.txt')
+      y_test.to_csv(outdir +'/'+ str(pid)+'.ytest.'+str(outer_index)+'.txt')
 
       storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
       helper = EstimatorSelectionHelper(models, params, storage=storage)
@@ -567,7 +571,15 @@ if __name__ == "__main__":
               params['num_boost_round'] = 1
           dtrain = xgb.DMatrix(X_split, label=y_split)
           xgb_clf_tuned_2 = xgb.train(params=params, dtrain=dtrain, num_boost_round=params['num_boost_round'])
-          xgb_clf_tuned_2.save_model('data/trained_models/mira_data/'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.json')
+          lst_vars_in_model = xgb_clf_tuned_2.feature_names
+          print(lst_vars_in_model)
+          featurenames = pd.DataFrame({"features":lst_vars_in_model})
+          featurenames.to_csv(outdir+'/'+'featurenames'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False)
+          best_ntree_limit = xgb_clf_tuned_2.best_ntree_limit
+          print(best_ntree_limit)
+          xgb_clf_tuned_2.save_model('data/trained_models/mira_data/save'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.json')
+          xgb_clf_tuned_2.dump_model('data/trained_models/mira_data/dump'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.json')
+
           #for be in temp_estimators:
           #    acc = temp_estimators[be]['test_f1']
           #    if be not in best_estimators:
