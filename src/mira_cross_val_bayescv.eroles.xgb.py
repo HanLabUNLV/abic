@@ -39,71 +39,22 @@ pid = os.getpid()
 
 #helper class that allows you to iterate over multiple classifiers within the nested for loop
 class EstimatorSelectionHelper:
-    def __init__(self, models, params, storage=None, dimrs=None, dimr_params=None):
+    def __init__(self, models, storage=None):
         #if not set(models.keys()).issubset(set(params.keys())):
         #    missing_params = list(set(models.keys()) - set(params.keys()))
         #    raise ValueError("Some estimators are missing parameters: %s" % missing_params)
         self.models = models
-        self.params = params
-        self.dimrs = dimrs
-        self.dimr_params = dimr_params
-        self.keys = models.keys()
         self.grid_searches = {}
         self.scores = {}
         self.best_estimator_ = None
         self.best_estimators_ = {}
         self.storage = storage
         self.studies = {}
+        for model in self.models: 
+            self.studies[model] = {}
+        self.current_model = {}
+        self.current_idx = {}
 
-    def create_studies(self):
-        for key in self.keys:
-            if self.dimrs is None:
-                print("\nCreating Optuna for %s." % key, flush=True)
-                #run Optuna search with inner search CV on outer split data 
-                pruner = optuna.pruners.MedianPruner(n_warmup_steps=5)
-                
-                # xgb study
-                study_name = "parallel."+key
-                #optuna.delete_study(study_name=study_name, storage=storage) # if there is existing study remove.
-                study = optuna.create_study(study_name=study_name, direction="maximize", storage=storage, pruner=pruner, load_if_exists=True)
-                self.studies[key] = study 
-
-    def fit(self, X, y, cv=3, n_jobs=10, verbose=1, scoring=None, refit=False):
-        for key in self.keys:
-            if self.dimrs is None:
-                print("\nRunning Optuna for %s." % key, flush=True)
-                #run Optuna search with inner search CV on outer split data 
-                # xgb study
-                study_name = key
-                study = optuna.load_study(study_name=study_name, storage=storage) 
-                #study.optimize(Objective(X_split, y_split, key, cv, scoring), n_trials=2000, timeout=600, n_jobs=10)  # will run 4 process to cover 2000 approx trials 
-
-                self.studies[key] = study 
-            else:
-                print("Running BayesSearchCV for %s." % key)
-                for dimr_label in self.dimrs:
-                    print("Testing %s dim reduction" % dimr_label)
-                    model = self.models[key]
-                    params = self.params[key]
-                    dimr = self.dimrs[dimr_label]
-                    dimr_params = self.dimr_params[dimr_label]
-                    pipeline = Pipeline([(dimr_label, dimr), (key,model)])
-
-                    gs_params = {}
-                    for i in params:
-                        gs_params[key+'__'+i] = params[i]
-                    for i in dimr_params:
-                        gs_params[dimr_label+'__'+i] = dimr_params[i]
-
-                    gs = BayesSearchCV(pipeline, gs_params, cv=cv, n_jobs=n_jobs,
-                        verbose=verbose, scoring=scoring, refit=refit,
-                        return_train_score=True)
-                    #print(np.argwhere(np.isnan(X)))
-                    #print(np.argwhere(np.isinf(X)))
-                    #print(np.argwhere(np.isnan(y)))
-                    #print(np.argwhere(np.isinf(y)))
-                    gs.fit(X,y)
-                    self.grid_searches[dimr_label + '_' + key] = gs    
 
     def score_summary(self, sort_by='mean_score'):
         def row(key, scores, params):
@@ -230,6 +181,7 @@ class EstimatorSelectionHelper:
             return pd.DataFrame.from_dict(outdir)
             #print(param_names)
 
+
 #logfile
 #out = open('../run.RF/logs/cross_validation.log','w')
 def plot_pr_curves(temp_estimators, X, y, abc_score, distance, out_idx, outdir):
@@ -295,63 +247,64 @@ def plot_coefficients(classifier, feature_names, top_features=20):
 # define the classifiers and params #
 #####################################
 
+models = ['xgb', 'rf']
 #in this script we use diff params for bayescv
-
-models = {
-    'xgb': xgb.XGBClassifier( 
-      objective= 'binary:logistic',
-      nthread=4,
-    ),
-    'rf':RandomForestClassifier(class_weight='balanced'),
-    #'lr':LogisticRegression(solver='liblinear', class_weight="balanced"),
-}
-
-params = {
-    'xgb':{
-      'n_estimators' : Integer(20, 100, 'uniform'),
-      'max_depth' : Integer(1, 5, 'uniform'),
-      'min_child_weight' : Real(0.1, 10, 'log-uniform'),
-      'colsample_bytree' : Real(0.8, 1, 'uniform'),
-      'subsample' : Real(0.5, 1, 'uniform'),
-      'gamma': (1e-9, 0.1, 'log-uniform')
-    },   
-    'rf':{'n_estimators': Integer(100,300),'min_samples_leaf':Integer(1,20),
-      'max_depth': Integer(5, 12),
-      'min_samples_split': Integer(2, 10)
-    },
-    #'lr':{'C':Real(1e-6,1e5, prior='log-uniform')},
-}
-
-dim_reductions = {
-#    'NMF':NMF(max_iter=300),
-    'SelectKBest':SelectKBest(chi2),
-#    'PCA':PCA(iterated_power=100),
-}
-
-dimr_params = {
-#    'SelectKBest':{'k':Integer(1,50)},
-#    'PCA':{'n_components':Integer(1,50)},
-#    'NMF':{'n_components':Integer(1,50)},
-    'SelectKBest':['passthrough'],
-}
-
+#
+#models = {
+#    'xgb': xgb.XGBClassifier( 
+#      objective= 'binary:logistic',
+#      nthread=4,
+#    ),
+#    'rf':RandomForestClassifier(class_weight='balanced'),
+#    #'lr':LogisticRegression(solver='liblinear', class_weight="balanced"),
+#}
+#
+#params = {
+#    'xgb':{
+#      'n_estimators' : Integer(20, 100, 'uniform'),
+#      'max_depth' : Integer(1, 5, 'uniform'),
+#      'min_child_weight' : Real(0.1, 10, 'log-uniform'),
+#      'colsample_bytree' : Real(0.8, 1, 'uniform'),
+#      'subsample' : Real(0.5, 1, 'uniform'),
+#      'gamma': (1e-9, 0.1, 'log-uniform')
+#    },   
+#    'rf':{'n_estimators': Integer(100,300),'min_samples_leaf':Integer(1,20),
+#      'max_depth': Integer(5, 12),
+#      'min_samples_split': Integer(2, 10)
+#    },
+#    #'lr':{'C':Real(1e-6,1e5, prior='log-uniform')},
+#}
+##
+#dim_reductions = {
+##    'NMF':NMF(max_iter=300),
+#    'SelectKBest':SelectKBest(chi2),
+##    'PCA':PCA(iterated_power=100),
+#}
+#
+#dimr_params = {
+##    'SelectKBest':{'k':Integer(1,50)},
+##    'PCA':{'n_components':Integer(1,50)},
+##    'NMF':{'n_components':Integer(1,50)},
+#    'SelectKBest':['passthrough'],
+#}
+#
 
 class Objective:
-  def __init__(self, X, y, classifier, cv, scoring):
+  def __init__(self, dtrain, classifier, cv, scoring, cls_weight):
     # Hold this implementation specific arguments as the fields of the class.
-    self.X = X 
-    self.y = y
+    #self.X = X 
+    #self.y = y
+    self.dtrain = dtrain
     self.classifier = classifier
     self.cv = cv
     self.scoring = scoring
+    self.cls_weight = 1
 
   def __call__(self, trial):
     # Calculate an objective value by using the extra arguments.
-    counter = Counter(self.y)
-    estimate = counter[0] / counter[1]
-    cls_weight = (self.y.shape[0] - np.sum(self.y)) / np.sum(self.y)
 
-    dtrain = xgb.DMatrix(self.X, label=self.y)
+    #if (self.dtrain == None): 
+    #    self.dtrain = xgb.DMatrix(self.X, label=self.y)
 
     param = {}
     if self.classifier == "xgb":
@@ -382,7 +335,7 @@ class Objective:
           # defines how selective algorithm is.
           "gamma": trial.suggest_float("gamma", 1e-9, 1.0, log=True),
           "grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
-          "scale_pos_weight": np.sqrt(cls_weight),
+          "scale_pos_weight": np.sqrt(self.cls_weight),
           "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
           "max_delta_step" : 1,
       }
@@ -410,7 +363,7 @@ class Objective:
           "subsample": trial.suggest_float("subsample", 0.4, 0.8),
           # sampling by node
           "colsample_bynode": trial.suggest_float("colsample_bynode", 0.5, 0.99),
-          "scale_pos_weight": np.sqrt(cls_weight),
+          "scale_pos_weight": np.sqrt(self.cls_weight),
           "eval_metric" : 'map',
           "max_delta_step" : 1,
       }
@@ -421,13 +374,192 @@ class Objective:
 
     # set up cross-validation
     pruning_callback = optuna.integration.XGBoostPruningCallback(trial, "test-map")
-    cv_results = xgb.cv(param, dtrain, nfold=3, stratified=True, callbacks=[pruning_callback])
+    cv_results = xgb.cv(param, self.dtrain, nfold=self.cv, stratified=True, callbacks=[pruning_callback])
 
     # Save cross-validation results.
     cv_results.to_csv(outdir+'/'+'cv.'+filenamesuffix+'.'+str(pid)+'.'+str(trial.number)+'.txt', index=False, sep='\t')
 
     mean_map = cv_results["test-map-mean"].values[-1]
     return mean_map
+
+
+# class outer folds
+class OuterFolds:
+    def __init__(self, foldsplit, nfold, storage, scoring):
+      # Hold this implementation specific arguments as the fields of the class.
+      self.outer_split = foldsplit
+      self.nfold = nfold
+      self.storage = storage
+      self.helper = None
+      self.scoring = scoring
+      self.outer_results = pd.DataFrame()
+      self.best_estimators = {}
+      self.X_splits = {}
+      self.y_splits = {}
+      self.dtrains = {}
+      self.dtrainfilenames = {}
+      self.X_tests = {}
+      self.y_tests = {}
+      self.dtests = {}
+      self.dtestfilenames = {}
+
+    # Set up outer folds for testing 
+    def create_outer_fold(self, X, y):
+        #######################
+        # nested cv structure #
+        #######################
+
+        outer_index = 0
+        self.helper = EstimatorSelectionHelper(models, storage=self.storage)
+        for split in self.outer_split.split(X,y):
+            #get indices for outersplit
+            train_idx, test_idx = split
+
+            #outer split data
+            X_split = X.iloc[train_idx, :].copy()
+            y_split = y.iloc[train_idx].copy()
+            X_split.to_csv(outdir +'/'+'Xsplit.'+str(outer_index)+'.txt', sep='\t')
+            y_split.to_csv(outdir +'/'+'ysplit.'+str(outer_index)+'.txt', sep='\t')
+            self.X_splits[outer_index] = X_split
+            self.y_splits[outer_index] = y_split
+
+            cols = X_split.columns
+            scaler = preprocessing.MinMaxScaler()
+            scaler.fit(X_split)
+            X_split = pd.DataFrame(scaler.transform(X_split), columns = cols)
+            dtrain = xgb.DMatrix(X_split, label=y_split)
+            dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
+            dtrain.save_binary(dtrainfilename)
+            self.dtrains[outer_index] = dtrain
+            self.dtrainfilenames[outer_index] = dtrainfilename
+            joblib.dump(scaler, outdir +'/'+'scaler.'+str(outer_index)+'.gz')
+
+            X_test = X.iloc[test_idx,:].copy()
+            y_test = y.iloc[test_idx].copy()
+            X_test.to_csv(outdir +'/'+ str(pid)+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
+            y_test.to_csv(outdir +'/'+ str(pid)+'.ytest.'+str(outer_index)+'.txt', sep='\t')
+            self.X_tests[outer_index] = X_test
+            self.y_tests[outer_index] = y_test
+            X_test = pd.DataFrame(scaler.transform(X_test), columns = cols)
+            dtest = xgb.DMatrix(X_test) 
+            dtestfilename = outdir +'/'+'dtest.'+str(outer_index)+'.data'
+            dtest.save_binary(dtestfilename)
+            self.dtests[outer_index] = dtest
+            self.dtestfilenames[outer_index] = dtestfilename
+
+            storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
+            for model in models: 
+                print("\nCreating Optuna for %s outer fold %d." % (model, outer_index), flush=True)
+                pruner = optuna.pruners.MedianPruner(n_warmup_steps=5)
+                # xgb study
+                study_name = "optuna."+model+"."+str(outer_index)
+                #optuna.delete_study(study_name=study_name, storage=storage) # if there is existing study remove.
+                study = optuna.create_study(study_name=study_name, direction="maximize", storage=storage, pruner=pruner, load_if_exists=True)
+            outer_index += 1
+
+
+    def optimize_hyperparams(self, model, outer_index, cv=3, scoring='aucpr'):
+        #outer_index = 0
+        #for classifier, folds in self.helper.studies.items():
+            #print(classifier)
+            #print(folds)
+            #for outer_index,studyname in folds.items():
+            #    print(outer_index)
+            #    print(studyname) 
+        studyname = "optuna."+model+"."+str(outer_index)
+        study = optuna.load_study(study_name=studyname, storage=self.storage) 
+        print("Loaded study  %s with  %d trials." % (studyname, len(study.trials)))
+        y_split = pd.read_csv(outdir +'/'+'ysplit.'+str(outer_index)+'.txt', sep='\t')
+        y_split = y_split['Significant']
+        counter = Counter(y_split)
+        estimate = counter[0] / counter[1]
+        cls_weight = (y_split.shape[0] - np.sum(y_split)) / np.sum(y_split)
+        dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
+        if (self.dtrains == {}): 
+            self.dtrains[outer_index] = xgb.DMatrix(dtrainfilename)
+        #run Optuna search with inner search CV on outer split data 
+        study.optimize(Objective(self.dtrains[outer_index], model, cv, scoring, cls_weight), n_trials=2000, timeout=600)  # will run 4 process to cover 2000 approx trials 
+       
+    # test and summarize outer fold results based on best hyperparms
+    def test_results(self):
+        outer_index = 0
+        for classifier, folds in self.helper.studies.items():
+            print(classifier)
+            print(folds)
+            for outer_index,studyname in folds.items():
+                print(outer_index)
+                print(studyname) 
+                study = optuna.load_study(study_name=studyname, storage=self.storage) 
+                print("Number of finished trials for  %s: %d." % (studyname, len(study.trials)))
+                if (len(study.trials) == 0):
+                    break;
+                print("Best trial:")
+                trial = study.best_trial
+
+                print("  Value: {}".format(trial.value))
+                print("  Params: ")
+                for key, value in trial.params.items():
+                    print("    {}: {}".format(key, value))
+
+
+                params = trial.params
+                y_split = self.y_splits[outer_index]
+                counter = Counter(y_split)
+                estimate = counter[0] / counter[1]
+                cls_weight = (y_split.shape[0] - np.sum(y_split)) / np.sum(y_split)
+                params['scale_pos_weight'] = np.sqrt(cls_weight)
+                if (classifier == 'rf'):
+                    params['num_boost_round'] = 1
+                dtrain = self.dtrains[outer_index]
+                xgb_clf_tuned_2 = xgb.train(params=params, dtrain=dtrain, num_boost_round=params['num_boost_round'])
+                lst_vars_in_model = xgb_clf_tuned_2.feature_names
+                print(lst_vars_in_model)
+                featurenames = pd.DataFrame({"features":lst_vars_in_model})
+                featurenames.to_csv(outdir+'/'+'featurenames'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
+                best_ntree_limit = xgb_clf_tuned_2.best_ntree_limit
+                print(best_ntree_limit)
+                xgb_clf_tuned_2.save_model('data/trained_models/mira_data/save'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.json')
+                xgb_clf_tuned_2.dump_model('data/trained_models/mira_data/dump'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.json')
+                
+                dtest = self.dtests[outer_index]
+                y_pred_prob = xgb_clf_tuned_2.predict(dtest)
+                y_pred = [round(value) for value in y_pred_prob]
+                y_test = self.y_tests[outer_index]
+                test_pd = pd.DataFrame(y_pred, columns=['pred'], index=y_test.index)
+                y_res = pd.merge(test_pd, y_test, left_index=True, right_index=True)
+                #res = pd.merge(y_res, pd.DataFrame(X_test, columns=X_test_columns, index=X_test_index), left_index=True, right_index=True)
+                res = pd.merge(y_res, self.X_tests[outer_index], left_index=True, right_index=True)
+                res.to_csv(outdir+'/'+'confusion.'+filenamesuffix+'.'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
+                # Data to plot precision - recall curve
+                precision, recall, thresholds = precision_recall_curve(y_test, y_pred_prob, pos_label = 1)
+                print(precision)
+                print(recall)
+                aucpr = auc(recall, precision)
+                average_precision = average_precision_score(y_test, y_pred_prob)
+                bal_accuracy = balanced_accuracy_score(y_test, y_pred)
+                test_f1_score = f1_score(y_test, y_pred)
+                params['aucpr'] = [aucpr]
+                params['average_precision'] = [average_precision]
+                params['bal_accuracy'] = [bal_accuracy]
+                params['f1_score'] = [test_f1_score]
+                params['classifier'] = classifier
+                self.outer_results = pd.concat([self.outer_results,pd.DataFrame.from_dict(params)])
+                #fnames = data1.loc[:,data1.columns != 'sig'].columns[[int(x[1:]) for x in xgb_clf_tuned_2[:-1].get_feature_names_out()]].tolist()
+                #fweights = clf.named_steps[clf_label].coef_.ravel()
+                #frank = rank(abs(clf.named_steps[clf_label].coef_.ravel()))
+                #for i in range(0,len(fnames)):
+                #    feature = fnames[i]
+                #    if feature not in feature_ranks:
+                #        feature_ranks[feature] = fweights[i]*frank[i]/len(frank)
+                #    else:
+                #        feature_ranks[feature] += fweights[i]*frank[i]/len(frank)
+                #plot pr curve
+                #plot_pr_curves([xgb_clf_tuned_2], X_test, y_test, abc_score[test_idx], distance[test_idx], outer_index, 'data/pr_curves_c/xgb/')
+
+
+    # next func
+
+
 
 
 
@@ -438,8 +570,9 @@ if __name__ == "__main__":
   parser.add_argument('--outdir', default='.', help="directory containing edgelist and vertices files")
   parser.add_argument('--chr', default='all', help="chromosome")
   parser.add_argument("--port", required=True, help="postgres port for storage")
-#  parser.add_argument("--model", required=True, help="choose one of xgb, rf, lr")
   parser.add_argument("--opt", action='store_true', help="parallel optimize") # if on, add parallel optimizers only
+  parser.add_argument("--model", default='all', help="choose one of xgb, rf, lr only when optimizing")
+  parser.add_argument("--outerfold", default='all', help="choose one of each outer fold only when optimizing")
 
   args=parser.parse_args()
   pid = os.getpid()
@@ -448,8 +581,9 @@ if __name__ == "__main__":
   chromosome = args.chr
   outdir = args.outdir
   postgres_port = args.port
-#  classifier = args.model
   optimize_only = args.opt
+  classifier = args.model
+  outerfold = args.outerfold
 
   filenamesuffix = ''
 
@@ -499,143 +633,20 @@ if __name__ == "__main__":
   X = features
   y = target
 
-    
-    
-  #######################
-  # nested cv structure #
-  #######################
-
-  outer_split = StratifiedKFold(n_splits=3, shuffle=True, random_state=RANDOM_SEED)
-  outer_results = pd.DataFrame()
-  outer_index = 0
-  best_estimators = {}
-  for split in outer_split.split(X,y):
-      #get indices for outersplit
-      train_idx, test_idx = split
-
-      #outer split data
-      X_split = X.iloc[train_idx, :].copy()
-      y_split = y.iloc[train_idx].copy()
-      X_split.to_csv(outdir +'/'+ str(pid)+'.Xsplit.'+str(outer_index)+'.txt', sep='\t')
-      y_split.to_csv(outdir +'/'+ str(pid)+'.ysplit.'+str(outer_index)+'.txt', sep='\t')
-
-      cols = X_split.columns
-      scaler = preprocessing.MinMaxScaler()
-      scaler.fit(X_split)
-      X_split = pd.DataFrame(scaler.transform(X_split), columns = cols)
-      import joblib
-      joblib.dump(scaler, outdir +'/'+ str(pid)+'.scaler.'+str(outer_index)+'.gz')
-
-      X_test = X.iloc[test_idx,:].copy()
-      y_test = y.iloc[test_idx].copy()
-      X_test.to_csv(outdir +'/'+ str(pid)+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
-      y_test.to_csv(outdir +'/'+ str(pid)+'.ytest.'+str(outer_index)+'.txt', sep='\t')
-      X_test = pd.DataFrame(scaler.transform(X_test), columns = cols)
-      dtest = xgb.DMatrix(X_test) 
-
-      storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
-      helper = EstimatorSelectionHelper(models, params, storage=storage)
-      if (optimize_only):
-          helper.fit(X_split, y_split, cv=None, scoring=None, n_jobs=10)
-          exit()
-      helper.create_studies()
-      helper.fit(X_split, y_split, cv=None, scoring=None, n_jobs=10)
-
-      for classifier, study in helper.studies.items():
-          print(classifier)
-          print(study)
-          print("Number of finished trials for  %s: %d." % (classifier, len(study.trials)))
-          print("Best trial:")
-          trial = study.best_trial
-
-          print("  Value: {}".format(trial.value))
-          print("  Params: ")
-          for key, value in trial.params.items():
-              print("    {}: {}".format(key, value))
-
-
-          params = trial.params
-
-          #get best performing models 
-          #helper.score_summary(sort_by='mean_score')
-
-          #helper performs the inner gridsearch by itself, but by using the best_estimator(method='test') command, we can run the outer gridsearch using test data
-          #clf = helper.best_estimator(method='test',X=X[test_idx,:], y=y[test_idx])
-          #clf = helper.best_estimator(method='test',X=X_test, y=y_test)
-          #best_params = helper.best_params()
-          #helper also stores the best estimator of each combination of dimr and clf, so store the most accurate ones    
-          #temp_estimators = helper.best_estimators_
-
-          counter = Counter(y_split)
-          estimate = counter[0] / counter[1]
-          cls_weight = (y_split.shape[0] - np.sum(y_split)) / np.sum(y_split)
-          params['scale_pos_weight'] = np.sqrt(cls_weight)
-          if (classifier == 'rf'):
-              params['num_boost_round'] = 1
-          dtrain = xgb.DMatrix(X_split, label=y_split)
-          xgb_clf_tuned_2 = xgb.train(params=params, dtrain=dtrain, num_boost_round=params['num_boost_round'])
-          lst_vars_in_model = xgb_clf_tuned_2.feature_names
-          print(lst_vars_in_model)
-          featurenames = pd.DataFrame({"features":lst_vars_in_model})
-          featurenames.to_csv(outdir+'/'+'featurenames'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
-          best_ntree_limit = xgb_clf_tuned_2.best_ntree_limit
-          print(best_ntree_limit)
-          xgb_clf_tuned_2.save_model('data/trained_models/mira_data/save'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.json')
-          xgb_clf_tuned_2.dump_model('data/trained_models/mira_data/dump'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.json')
-
-          #for be in temp_estimators:
-          #    acc = temp_estimators[be]['test_f1']
-          #    if be not in best_estimators:
-          #        best_estimators[be] = temp_estimators[be]
-          #    elif best_estimators[be]['test_f1'] < acc:
-          #        best_estimators[be] = temp_estimators[be]
-          #    importances = temp_estimators[be]['importances']
-          #    if importances is not None:
-          #        pd.DataFrame(data=importances, index=feature_labels).to_csv('data/trained_models/mira_data/'+str(pid)+'.importance.'+be+'.'+str(outer_results.shape[0])+'.txt')
-                   
-          #return the best performing model on test data
-          
-          y_pred_prob = xgb_clf_tuned_2.predict(dtest)
-          y_pred = [round(value) for value in y_pred_prob]
-          test_pd = pd.DataFrame(y_pred, columns=['pred'], index=y_test.index)
-          y_res = pd.merge(test_pd, y_test, left_index=True, right_index=True)
-          #res = pd.merge(y_res, pd.DataFrame(X_test, columns=X_test_columns, index=X_test_index), left_index=True, right_index=True)
-          res = pd.merge(y_res, X_test, left_index=True, right_index=True)
-          res.to_csv(outdir+'/'+'confusion.'+filenamesuffix+'.'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
-          # Data to plot precision - recall curve
-          precision, recall, thresholds = precision_recall_curve(y_test, y_pred_prob, pos_label = 1)
-          print(precision)
-          print(recall)
-          aucpr = auc(recall, precision)
-          average_precision = average_precision_score(y_test, y_pred_prob)
-          bal_accuracy = balanced_accuracy_score(y_test, y_pred)
-          test_f1_score = f1_score(y_test, y_pred)
-          params['aucpr'] = [aucpr]
-          params['average_precision'] = [average_precision]
-          params['bal_accuracy'] = [bal_accuracy]
-          params['f1_score'] = [test_f1_score]
-          params['classifier'] = classifier
-          outer_results = pd.concat([outer_results,pd.DataFrame.from_dict(params)])
-          #fnames = data1.loc[:,data1.columns != 'sig'].columns[[int(x[1:]) for x in xgb_clf_tuned_2[:-1].get_feature_names_out()]].tolist()
-          #fweights = clf.named_steps[clf_label].coef_.ravel()
-          #frank = rank(abs(clf.named_steps[clf_label].coef_.ravel()))
-          #for i in range(0,len(fnames)):
-          #    feature = fnames[i]
-          #    if feature not in feature_ranks:
-          #        feature_ranks[feature] = fweights[i]*frank[i]/len(frank)
-          #    else:
-          #        feature_ranks[feature] += fweights[i]*frank[i]/len(frank)
-          #plot pr curve
-          #plot_pr_curves([xgb_clf_tuned_2], X_test, y_test, abc_score[test_idx], distance[test_idx], outer_index, 'data/pr_curves_c/xgb/')
-      outer_index += 1
+  # create outer fold object
+  nfold = 3
+  outer_split = StratifiedKFold(n_splits=nfold, shuffle=True, random_state=RANDOM_SEED)
+  storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
+  outerFolds = OuterFolds(outer_split, nfold, storage, '')
+  if (optimize_only == False): 
+      outerFolds.create_outer_fold(X, y)
+  else:
+      outerFolds.optimize_hyperparams(classifier, outerfold)
+  outerFolds.test_results()
 
 
   pd.set_option('display.max_columns', None) 
-  print(outer_results) 
-  print(best_estimators)
-  outer_results.to_csv('data/trained_models/mira_data/'+str(pid)+'.outer_results.txt', sep='\t')
-  #save best estimators 
-  for est in best_estimators:
-      joblib.dump(best_estimators[est]['clf'], 'data/trained_models/mira_data/'+str(pid)+'.'+est+'.pkl')
+  print(outerFolds.outer_results) 
+  outerFolds.outer_results.to_csv('data/trained_models/mira_data/'+str(pid)+'.outer_results.txt', sep='\t')
   print('Total runtime: ' + str(time.time() - tstart))    
 
