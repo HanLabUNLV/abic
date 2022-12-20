@@ -1,7 +1,12 @@
 import argparse
-import numpy as np
 import time, os
+os.environ["OMP_NUM_THREADS"] = "2" # export OMP_NUM_THREADS=2
+os.environ["OPENBLAS_NUM_THREADS"] = "2" # export OPENBLAS_NUM_THREADS=2 
+os.environ["MKL_NUM_THREADS"] = "2" # export MKL_NUM_THREADS=2
+os.environ["VECLIB_MAXIMUM_THREADS"] = "2" # export VECLIB_MAXIMUM_THREADS=2
+os.environ["NUMEXPR_NUM_THREADS"] = "2" # export NUMEXPR_NUM_THREADS=2
 import joblib
+import numpy as np
 from  scipy.stats import rankdata as rank
 import matplotlib.pyplot as plt
 from statistics import mean, stdev
@@ -454,7 +459,9 @@ class OuterFolds:
                 # xgb study
                 study_name = "optuna."+model+"."+str(outer_index)
                 #optuna.delete_study(study_name=study_name, storage=storage) # if there is existing study remove.
+                #storage._backend.engine.dispose()
                 study = optuna.create_study(study_name=study_name, direction="maximize", storage=storage, pruner=pruner, load_if_exists=True)
+                #study._storage._backend.delete_study(study._study_id)
             outer_index += 1
 
 
@@ -463,12 +470,12 @@ class OuterFolds:
         #for classifier, folds in self.helper.studies.items():
             #print(classifier)
             #print(folds)
-            #for outer_index,studyname in folds.items():
+            #for outer_index,study_name in folds.items():
             #    print(outer_index)
-            #    print(studyname) 
-        studyname = "optuna."+model+"."+str(outer_index)
-        study = optuna.load_study(study_name=studyname, storage=self.storage) 
-        print("Loaded study  %s with  %d trials." % (studyname, len(study.trials)))
+            #    print(study_name) 
+        study_name = "optuna."+model+"."+str(outer_index)
+        study = optuna.load_study(study_name=study_name, storage=self.storage) 
+        print("Loaded study  %s with  %d trials." % (study_name, len(study.trials)))
         y_split = pd.read_csv(outdir +'/'+'ysplit.'+str(outer_index)+'.txt', sep='\t')
         y_split = y_split['Significant']
         counter = Counter(y_split)
@@ -478,19 +485,20 @@ class OuterFolds:
         if (self.dtrains == {}): 
             self.dtrains[outer_index] = xgb.DMatrix(dtrainfilename)
         #run Optuna search with inner search CV on outer split data 
-        study.optimize(Objective(self.dtrains[outer_index], model, cv, scoring, cls_weight), n_trials=2000, timeout=600)  # will run 4 process to cover 2000 approx trials 
+        study.optimize(Objective(self.dtrains[outer_index], model, cv, scoring, cls_weight), n_trials=2000, timeout=600, n_jobs=1)  # will run 4 process to cover 2000 approx trials 
+        #study._storage._backend.delete_study(study._study_id)
        
     # test and summarize outer fold results based on best hyperparms
     def test_results(self):
         outer_index = 0
-        for classifier, folds in self.helper.studies.items():
-            print(classifier)
-            print(folds)
-            for outer_index,studyname in folds.items():
+        for classifier in models:
+            for outer_index in range(self.nfold):
+                print(classifier)
                 print(outer_index)
-                print(studyname) 
-                study = optuna.load_study(study_name=studyname, storage=self.storage) 
-                print("Number of finished trials for  %s: %d." % (studyname, len(study.trials)))
+                study_name = "optuna."+classifier+"."+str(outer_index)
+                print(study_name) 
+                study = optuna.load_study(study_name=study_name, storage=self.storage) 
+                print("Number of finished trials for  %s: %d." % (study_name, len(study.trials)))
                 if (len(study.trials) == 0):
                     break;
                 print("Best trial:")
@@ -508,6 +516,7 @@ class OuterFolds:
                 estimate = counter[0] / counter[1]
                 cls_weight = (y_split.shape[0] - np.sum(y_split)) / np.sum(y_split)
                 params['scale_pos_weight'] = np.sqrt(cls_weight)
+                params['objective'] = "binary:logistic" 
                 if (classifier == 'rf'):
                     params['num_boost_round'] = 1
                 dtrain = self.dtrains[outer_index]
@@ -564,6 +573,7 @@ class OuterFolds:
 
 
 # python src/mira_cross_val_bayescv.eroles.xgb.optuna.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run2 --port 16147
+# python -i src/mira_cross_val_bayescv.eroles.xgb.optuna.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run2 --port 16147 --model 'rf' --outerfold 2
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--dir', required=True, help="directory containing edgelist and vertices files")
