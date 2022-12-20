@@ -33,7 +33,7 @@ from optuna.pruners import MedianPruner
 from optuna.integration import XGBoostPruningCallback
 from collections import Counter
 
-RANDOM_SEED = 42
+RANDOM_SEED = 2
 
 tstart = time.time()
 pid = os.getpid()
@@ -459,9 +459,7 @@ class OuterFolds:
                 # xgb study
                 study_name = "optuna."+model+"."+str(outer_index)
                 #optuna.delete_study(study_name=study_name, storage=storage) # if there is existing study remove.
-                #storage._backend.engine.dispose()
                 study = optuna.create_study(study_name=study_name, direction="maximize", storage=storage, pruner=pruner, load_if_exists=True)
-                #study._storage._backend.delete_study(study._study_id)
             outer_index += 1
 
 
@@ -486,7 +484,6 @@ class OuterFolds:
             self.dtrains[outer_index] = xgb.DMatrix(dtrainfilename)
         #run Optuna search with inner search CV on outer split data 
         study.optimize(Objective(self.dtrains[outer_index], model, cv, scoring, cls_weight), n_trials=2000, timeout=600, n_jobs=1)  # will run 4 process to cover 2000 approx trials 
-        #study._storage._backend.delete_study(study._study_id)
        
     # test and summarize outer fold results based on best hyperparms
     def test_results(self):
@@ -572,8 +569,8 @@ class OuterFolds:
 
 
 
-# python src/mira_cross_val_bayescv.eroles.xgb.optuna.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run2 --port 16147
-# python -i src/mira_cross_val_bayescv.eroles.xgb.optuna.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run2 --port 16147 --model 'rf' --outerfold 2
+# python src/mira_cross_val_bayescv.eroles.xgb.optuna.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run2 --port 44803
+# python -i src/mira_cross_val_bayescv.eroles.xgb.optuna.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run2 --port 44803 --model 'rf' --outerfold 2
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--dir', required=True, help="directory containing edgelist and vertices files")
@@ -650,9 +647,10 @@ if __name__ == "__main__":
   outerFolds = OuterFolds(outer_split, nfold, storage, '')
   if (optimize_only == False): 
       outerFolds.create_outer_fold(X, y)
+      outerFolds.test_results()
   else:
       outerFolds.optimize_hyperparams(classifier, outerfold)
-  outerFolds.test_results()
+  storage.remove_session()
 
 
   pd.set_option('display.max_columns', None) 
