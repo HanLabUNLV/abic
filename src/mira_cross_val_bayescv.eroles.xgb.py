@@ -561,6 +561,10 @@ class OuterFolds:
                 #        feature_ranks[feature] += fweights[i]*frank[i]/len(frank)
                 #plot pr curve
                 #plot_pr_curves([xgb_clf_tuned_2], X_test, y_test, abc_score[test_idx], distance[test_idx], outer_index, 'data/pr_curves_c/xgb/')
+        
+        pd.set_option('display.max_columns', None) 
+        print(self.outer_results) 
+        self.outer_results.to_csv('data/trained_models/mira_data/'+str(pid)+'.outer_results.txt', sep='\t')
 
 
     # next func
@@ -653,8 +657,5 @@ if __name__ == "__main__":
   storage.remove_session()
 
 
-  pd.set_option('display.max_columns', None) 
-  print(outerFolds.outer_results) 
-  outerFolds.outer_results.to_csv('data/trained_models/mira_data/'+str(pid)+'.outer_results.txt', sep='\t')
   print('Total runtime: ' + str(time.time() - tstart))    
 
