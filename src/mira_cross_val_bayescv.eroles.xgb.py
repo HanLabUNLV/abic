@@ -13,7 +13,7 @@ from statistics import mean, stdev
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn import preprocessing
 from sklearn.datasets import load_digits
-from sklearn.model_selection import GridSearchCV, train_test_split, StratifiedKFold, cross_val_score
+from sklearn.model_selection import GridSearchCV, train_test_split, StratifiedKFold, StratifiedGroupKFold, cross_val_score
 from skopt import BayesSearchCV
 from skopt.space import Real, Categorical, Integer 
 from sklearn.pipeline import Pipeline
@@ -33,7 +33,7 @@ from optuna.pruners import MedianPruner
 from optuna.integration import XGBoostPruningCallback
 from collections import Counter
 
-RANDOM_SEED = 2
+RANDOM_SEED = 42
 
 tstart = time.time()
 pid = os.getpid()
@@ -294,14 +294,32 @@ models = ['xgb', 'rf']
 #}
 #
 
+def RandomGroupKFold_split(groups, n, seed=None):  # noqa: N802
+    """
+    Random analogous of sklearn.model_selection.GroupKFold.split.
+
+    :return: list of (train, test) indices
+    """
+    groups = pd.Series(groups)
+    ix = np.arange(len(groups))
+    unique = np.unique(groups)
+    np.random.RandomState(seed).shuffle(unique)
+    result = []
+    for split in np.array_split(unique, n):
+        mask = groups.isin(split)
+        train, test = ix[~mask], ix[mask]
+        result.append((train, test))
+
+    return result
+
 class Objective:
-  def __init__(self, dtrain, classifier, cv, scoring, cls_weight):
+  def __init__(self, dtrain, classifier, custom_fold, scoring, cls_weight):
     # Hold this implementation specific arguments as the fields of the class.
     #self.X = X 
     #self.y = y
     self.dtrain = dtrain
     self.classifier = classifier
-    self.cv = cv
+    self.custom_fold = custom_fold
     self.scoring = scoring
     self.cls_weight = 1
 
@@ -379,7 +397,9 @@ class Objective:
 
     # set up cross-validation
     pruning_callback = optuna.integration.XGBoostPruningCallback(trial, "test-map")
-    cv_results = xgb.cv(param, self.dtrain, nfold=self.cv, stratified=True, callbacks=[pruning_callback])
+    #cv_results = xgb.cv(param, self.dtrain, nfold=self.cv, stratified=True, callbacks=[pruning_callback])
+    cv_results = xgb.cv(param, self.dtrain, folds=self.custom_fold, early_stopping_rounds=100, callbacks=[pruning_callback])
+    trial.set_user_attr("n_estimators", len(xgb_cv_results))
 
     # Save cross-validation results.
     cv_results.to_csv(outdir+'/'+'cv.'+filenamesuffix+'.'+str(pid)+'.'+str(trial.number)+'.txt', index=False, sep='\t')
@@ -390,21 +410,23 @@ class Objective:
 
 # class outer folds
 class OuterFolds:
-    def __init__(self, foldsplit, nfold, storage, scoring):
+    def __init__(self, foldsplit, nfold, groups, storage, scoring):
       # Hold this implementation specific arguments as the fields of the class.
+      self.study_name_prefix="groupcv."
       self.outer_split = foldsplit
       self.nfold = nfold
+      self.groups = groups
       self.storage = storage
-      self.helper = None
       self.scoring = scoring
       self.outer_results = pd.DataFrame()
-      self.best_estimators = {}
       self.X_splits = {}
       self.y_splits = {}
+      self.group_splits = {}
       self.dtrains = {}
       self.dtrainfilenames = {}
       self.X_tests = {}
       self.y_tests = {}
+      self.group_tests = {}
       self.dtests = {}
       self.dtestfilenames = {}
 
@@ -415,18 +437,21 @@ class OuterFolds:
         #######################
 
         outer_index = 0
-        self.helper = EstimatorSelectionHelper(models, storage=self.storage)
-        for split in self.outer_split.split(X,y):
+        #for split in self.outer_split.split(X,y):
+        for split in self.outer_split.split(X,y,self.groups):
             #get indices for outersplit
             train_idx, test_idx = split
 
             #outer split data
             X_split = X.iloc[train_idx, :].copy()
             y_split = y.iloc[train_idx].copy()
+            group_train = self.groups.iloc[train_idx]
             X_split.to_csv(outdir +'/'+'Xsplit.'+str(outer_index)+'.txt', sep='\t')
             y_split.to_csv(outdir +'/'+'ysplit.'+str(outer_index)+'.txt', sep='\t')
+            group_train.to_csv(outdir +'/'+'groupsplit.'+str(outer_index)+'.txt', sep='\t')
             self.X_splits[outer_index] = X_split
             self.y_splits[outer_index] = y_split
+            self.group_splits[outer_index] = group_train
 
             cols = X_split.columns
             scaler = preprocessing.MinMaxScaler()
@@ -441,10 +466,13 @@ class OuterFolds:
 
             X_test = X.iloc[test_idx,:].copy()
             y_test = y.iloc[test_idx].copy()
+            group_test = self.groups.iloc[test_idx]
             X_test.to_csv(outdir +'/'+ str(pid)+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
             y_test.to_csv(outdir +'/'+ str(pid)+'.ytest.'+str(outer_index)+'.txt', sep='\t')
+            group_test.to_csv(outdir +'/'+'grouptest.'+str(outer_index)+'.txt', sep='\t')
             self.X_tests[outer_index] = X_test
             self.y_tests[outer_index] = y_test
+            self.group_tests[outer_index] = group_test
             X_test = pd.DataFrame(scaler.transform(X_test), columns = cols)
             dtest = xgb.DMatrix(X_test) 
             dtestfilename = outdir +'/'+'dtest.'+str(outer_index)+'.data'
@@ -457,13 +485,13 @@ class OuterFolds:
                 print("\nCreating Optuna for %s outer fold %d." % (model, outer_index), flush=True)
                 pruner = optuna.pruners.MedianPruner(n_warmup_steps=5)
                 # xgb study
-                study_name = "optuna."+model+"."+str(outer_index)
+                study_name = self.study_name_prefix+model+"."+str(outer_index)
                 #optuna.delete_study(study_name=study_name, storage=storage) # if there is existing study remove.
                 study = optuna.create_study(study_name=study_name, direction="maximize", storage=storage, pruner=pruner, load_if_exists=True)
             outer_index += 1
 
 
-    def optimize_hyperparams(self, model, outer_index, cv=3, scoring='aucpr'):
+    def optimize_hyperparams(self, model, outer_index, n_inner_fold=3, scoring='map'):
         #outer_index = 0
         #for classifier, folds in self.helper.studies.items():
             #print(classifier)
@@ -471,9 +499,10 @@ class OuterFolds:
             #for outer_index,study_name in folds.items():
             #    print(outer_index)
             #    print(study_name) 
-        study_name = "optuna."+model+"."+str(outer_index)
+        study_name = self.study_name_prefix+model+"."+str(outer_index)
         study = optuna.load_study(study_name=study_name, storage=self.storage) 
         print("Loaded study  %s with  %d trials." % (study_name, len(study.trials)))
+        X_split = pd.read_csv(outdir +'/'+'Xsplit.'+str(outer_index)+'.txt', sep='\t')
         y_split = pd.read_csv(outdir +'/'+'ysplit.'+str(outer_index)+'.txt', sep='\t')
         y_split = y_split['Significant']
         counter = Counter(y_split)
@@ -482,8 +511,16 @@ class OuterFolds:
         dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
         if (self.dtrains == {}): 
             self.dtrains[outer_index] = xgb.DMatrix(dtrainfilename)
+        group_split = pd.read_csv(outdir +'/'+'groupsplit.'+str(outer_index)+'.txt', sep='\t')
+        group_split = group_split['group']
+        
         #run Optuna search with inner search CV on outer split data 
-        study.optimize(Objective(self.dtrains[outer_index], model, cv, scoring, cls_weight), n_trials=2000, timeout=600, n_jobs=1)  # will run 4 process to cover 2000 approx trials 
+        inner_splits = StratifiedGroupKFold(n_splits=n_inner_fold, shuffle=True, random_state=RANDOM_SEED)
+        custom_fold = []  #list of (train, test) indices
+        for split in inner_splits.split(X_split,y_split,group_split):
+            train_idx, test_idx = split
+            custom_fold.append((train_idx, test_idx))
+        study.optimize(Objective(self.dtrains[outer_index], model, custom_fold, scoring, cls_weight), n_trials=2000, timeout=600, n_jobs=1)  # will run 4 process to cover 2000 approx trials 
        
     # test and summarize outer fold results based on best hyperparms
     def test_results(self):
@@ -492,7 +529,7 @@ class OuterFolds:
             for outer_index in range(self.nfold):
                 print(classifier)
                 print(outer_index)
-                study_name = "optuna."+classifier+"."+str(outer_index)
+                study_name = self.study_name_prefix+classifier+"."+str(outer_index)
                 print(study_name) 
                 study = optuna.load_study(study_name=study_name, storage=self.storage) 
                 print("Number of finished trials for  %s: %d." % (study_name, len(study.trials)))
@@ -505,7 +542,7 @@ class OuterFolds:
                 print("  Params: ")
                 for key, value in trial.params.items():
                     print("    {}: {}".format(key, value))
-
+                print("  Number of estimators: {}".format(trial.user_attrs["n_estimators"]))
 
                 params = trial.params
                 y_split = self.y_splits[outer_index]
@@ -573,8 +610,8 @@ class OuterFolds:
 
 
 
-# python src/mira_cross_val_bayescv.eroles.xgb.optuna.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run2 --port 44803
-# python -i src/mira_cross_val_bayescv.eroles.xgb.optuna.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run2 --port 44803 --model 'rf' --outerfold 2
+# python src/mira_cross_val_bayescv.eroles.xgb.optuna.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run.groupcv --port 44803
+# python -i src/mira_cross_val_bayescv.eroles.xgb.optuna.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run.groupcv --port 44803 --model 'rf' --outerfold 2
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--dir', required=True, help="directory containing edgelist and vertices files")
@@ -602,7 +639,7 @@ if __name__ == "__main__":
   #import our data, then format it #
   ##################################
 
-  data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.erole.txt',sep='\t', header=0)
+  data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.erole.grouped.txt',sep='\t', header=0)
   data2 = data2.loc[:,~data2.columns.str.match("Unnamed")]
   #data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.eindirect.txt',sep='\t', header=0)
   #data2 = data2.loc[data2['e1']==1,]
@@ -622,18 +659,25 @@ if __name__ == "__main__":
   #cobindingfeatures = cobindingfeatures.dropna()
   crisprfeatures = features_gasperini[['EffectSize', 'Significant', 'pValue' ]].copy()
   crisprfeatures = crisprfeatures.dropna()
+  groupfeatures = features_gasperini[['group']].copy()
+
   features = ActivityFeatures.copy()
   features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
   features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
-  data = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
+  features = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
+  data = pd.merge(features, groupfeatures, left_index=True, right_index=True)
   ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
   hicfeatures = data.iloc[:, ActivityFeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]]
   TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
-  crisprfeatures = data.iloc[:, -3:]
+  #crisprfeatures = data.iloc[:, -3:]
+  crisprfeatures = data[['EffectSize', 'Significant', 'pValue' ]]
+  groupfeatures = data[['group']]
   f1 = set(list(features.columns))
-  features = data.iloc[:, :data.shape[1]-3]
+  #features = data.iloc[:, :data.shape[1]-3]
+  features = data.iloc[:, :data.shape[1]-crisprfeatures.shape[1]-groupfeatures.shape[1]]
   f2 = set(list(features.columns))
   target = crisprfeatures['Significant'].astype(int)
+  groups = groupfeatures
 
   abc_score = features['ABC.Score'].values
   distance = features['distance'].values
@@ -646,9 +690,10 @@ if __name__ == "__main__":
 
   # create outer fold object
   nfold = 3
-  outer_split = StratifiedKFold(n_splits=nfold, shuffle=True, random_state=RANDOM_SEED)
+  #outer_split = StratifiedKFold(n_splits=nfold, shuffle=True, random_state=RANDOM_SEED)
+  outer_split = StratifiedGroupKFold(n_splits=nfold, shuffle=True, random_state=RANDOM_SEED)
   storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
-  outerFolds = OuterFolds(outer_split, nfold, storage, '')
+  outerFolds = OuterFolds(outer_split, nfold, groups, storage, '')
   if (optimize_only == False): 
       outerFolds.create_outer_fold(X, y)
       outerFolds.test_results()
