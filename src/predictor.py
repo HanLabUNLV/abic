@@ -440,6 +440,104 @@ def network_from_hic(enhancers, HiC, hic_threshold, hic_resolution,chromosome, w
     network.es['hic'] = filt_hics
     return(network)
 
+def validated_network_around_gene(enhancers, gene, valid_loops):
+    network = Graph()
+    hic_resolution = 5000
+    enhancers = deepcopy(enhancers.loc[enhancers['TargetGene']==gene,])
+    
+    #valid_loops should contain only loops with either a valid enhancer or the promoter at both ends
+    #this makes the graph we're generating, extra valid1
+    valid_loops['node1'] = valid_loops[['chr1','start1','end1']].apply(lambda row: '_'.join(row.values.astype(str)), axis=1)
+    valid_loops['node2'] = valid_loops[['chr2','start2','end2']].apply(lambda row: '_'.join(row.values.astype(str)), axis=1)
+
+    print(valid_loops['node1'])
+    print(valid_loops['node2'])
+    nodes = []
+    edges = []
+    for idx, row in valid_loops.iterrows():
+        node1 = row['node1']
+        node2 = row['node2']
+        if node1 not in nodes:
+            nodes.append(node1)
+        if node2 not in nodes:
+            nodes.append(node2)
+        edges.append([node1, node2])
+
+    network.add_vertices(nodes)
+    network.add_edges(edges)
+    #now the network has every enhancer and promoter as a node, it's time to add activity, coordinates, and hic to the network so we can produce a picture
+    if len([v for v in network.vs]) < 2:
+        print(gene)
+        print([v for v in network.vs])
+        exit('network has less than 2 vertices')
+    add_attr_network(network, enhancers, gene)
+    hic_dir = 'raw_data/hic/5kb_resolution_intrachromosomal/'
+    hic_resolution = 5000
+    hic_type = 'juicebox'
+    tss_hic_contribution = 100
+    window = 5000000 #size of window around gene TSS to search for enhancers
+    hic_gamma = .87
+    args = {'hic_dir':hic_dir,'hic_resolution':hic_resolution,'hic_type':hic_type,'tss_hic_contribution':tss_hic_contribution,'window':window,'hic_gamma':hic_gamma}
+    chromosome = enhancers.chr.tolist()[0]
+    #hic_file, hic_norm_file, hic_is_vc = get_hic_file(chromosome, args['hic_dir'], hic_type = args['hic_type']) 
+    hic_file = 'raw_data/hic/5kb_resolution_intrachromosomal/'+chromosome+'/'+chromosome+'_5kb.RAWobserved'
+    hic_norm_file = 'raw_data/hic/5kb_resolution_intrachromosomal/'+chromosome+'/'+chromosome+'_5kb.KRnorm'
+    hic_is_vc = True
+    hic_threshold = 0.#2.788652e-03 * 0.01 #75% of contacts
+    #load HIC matrix
+    HiC = load_hic(hic_file = hic_file,
+        hic_norm_file = hic_norm_file,
+        hic_is_vc = hic_is_vc,
+        hic_type = args['hic_type'],
+        hic_resolution = args['hic_resolution'],
+        tss_hic_contribution = args['tss_hic_contribution'],
+        window = args['window'],
+        min_window = 0,
+        gamma = args['hic_gamma'])
+
+    #define boundaries to trim HiC
+    tss = enhancers.loc[enhancers['TargetGene']==gene,'TargetGeneTSS'].tolist()[0]
+    lwindow = int(np.floor(tss - (window/2))/hic_resolution)
+    rwindow = int(np.floor(tss + (window/2))/hic_resolution)
+    bins = [x for x in range(lwindow, rwindow+1)]
+    
+    HiC = HiC.loc[(HiC['bin1'].isin(bins) & HiC['bin2'].isin(bins)),]
+
+    #add useful cols
+    HiC['chr'] = chromosome
+    HiC['viewNodeStart'] = HiC.bin1 * hic_resolution
+    HiC['viewNodeEnd'] = (HiC.bin1 + 1) * hic_resolution
+    HiC['contactNodeStart'] = HiC.bin2 * hic_resolution
+    HiC['contactNodeEnd'] = (HiC.bin2 + 1) * hic_resolution
+    HiC['viewNode'] = HiC.chr.str.cat([HiC.viewNodeStart.astype(str), HiC.viewNodeEnd.astype(str)], sep='_')
+    HiC['contactNode'] = HiC.chr.str.cat([HiC.contactNodeStart.astype(str), HiC.contactNodeEnd.astype(str)], sep='_')
+    HiC['connectionID'] = HiC.viewNode.str.cat(HiC.contactNode, sep=':')
+    #now iter over edges, get all pairs of connections between bins you need
+    hics = []
+    for edge in edges:
+        h = HiC.loc[((HiC['viewNode']==edge[0]) & (HiC['contactNode']==edge[1])),]
+        hlist = h.hic_contact.tolist()
+        if len(hlist)==1:
+            hics.append(hlist[0])
+        elif len(hlist)>1:
+            hics.append(h['hic_contact'].mean())
+        else:
+            hics.append(0)
+
+    network.es['contact']=hics
+
+    #with open('chr19/gene_networks/'+gene+'_network.pkl','wb') as f:
+    #    pkl.dump(network, f)
+ 
+    #visual_style = {}
+    #visual_style["vertex_size"] = 10
+    #visual_style["edge_width"] = hics
+    #plot(network, target='chr19/'+gene+'_reg_network.png', **visual_style)
+    return(network)
+
+
+
+
 def network_around_gene(enhancers, gene):
     network = Graph()
     hic_resolution = 5000
@@ -575,6 +673,32 @@ def calculate_dijkstra_contact(network, promoter):
     network.vs['Cd'] = Cd
     network.vs['Ceg'] = Ceg    
 
+def add_validated_attr(network, validation):
+    #TODO: add effect size and significance -- filter out unvalidated? just mark with NA? 
+    #initialize validation pyranges object 
+    validation = validation.rename(columns={'chrEnhancer':'Chromosome','startEnhancer':'Start','endEnhancer':'End'})
+    valpr = pr.PyRanges(validation)
+    #iter through nodes
+    for v in network.vs:
+        #iter through enhancers within node
+        fx_sz = []
+        sig = []
+        for enh in v['enhancers']['local_enhancers']:
+            chrm, start, stop = enh
+            prtmp = pr.from_dict({'Chromosome':[chrm], 'Start':[start], 'End':[stop]})
+            ov = valpr.overlap(prtmp)
+            if ov.__len__()>0:
+                fx_sz.append(ov.as_df().EffectSize.values[0])
+                sig.append(ov.as_df().Significant.values[0])
+            else:
+                fx_sz.append('NA')
+                sig.append('NA')
+        network.vs.find(v['name'])['effect_size'] = fx_sz
+        network.vs.find(v['name'])['sig'] = sig
+
+        
+    return network
+
 
 def add_attr_network(network, enhancers, gene):
     vs = network.vs['name']
@@ -597,11 +721,15 @@ def add_attr_network(network, enhancers, gene):
         network.vs.find(i)['enhancers'] = local_enhancer_attr
 
     #add a mean activity to the node as an attribute
+    np.seterr(all='raise')
     activity = []
     for v in network.vs:
         if v['enhancers'] is not None:
-            if len(v['enhancers']['activity'])>0:
-                activity.append(gmean(v['enhancers']['activity']))
+            if (len(v['enhancers']['activity'])>0) and (sum(v['enhancers']['activity'])>0):
+                try:
+                    activity.append(gmean(v['enhancers']['activity']))
+                except:
+                    activity.append(mean(v['enhancers']['activity']))
             else:
                 activity.append(0)
         else:

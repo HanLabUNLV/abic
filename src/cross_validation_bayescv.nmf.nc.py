@@ -4,16 +4,20 @@ import joblib
 from  scipy.stats import rankdata as rank
 import matplotlib.pyplot as plt
 from statistics import mean, stdev
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn import preprocessing
 from sklearn.datasets import load_digits
 from sklearn.model_selection import GridSearchCV, train_test_split, StratifiedKFold, cross_val_score
+from skopt import BayesSearchCV
+from skopt.space import Real, Categorical, Integer 
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.decomposition import PCA, NMF
+from sklearn.manifold import TSNE
 from sklearn.feature_selection import SelectKBest, chi2
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.metrics import precision_recall_curve, balanced_accuracy_score
-from sklearn.svm import LinearSVC
+from sklearn.metrics import precision_recall_curve, balanced_accuracy_score, make_scorer
+from sklearn.svm import LinearSVC, SVC
 from sklearn.linear_model import LogisticRegression
 import pandas as pd
 
@@ -47,7 +51,7 @@ class EstimatorSelectionHelper:
                 gs.fit(X,y)
                 self.grid_searches[key] = gs    
             else:
-                print("Running GridSearchCV for %s." % key)
+                print("Running BayesSearchCV for %s." % key)
                 for dimr_label in self.dimrs:
                     print("Testing %s dim reduction" % dimr_label)
                     model = self.models[key]
@@ -62,9 +66,13 @@ class EstimatorSelectionHelper:
                     for i in dimr_params:
                         gs_params[dimr_label+'__'+i] = dimr_params[i]
 
-                    gs = GridSearchCV(pipeline, gs_params, cv=cv, n_jobs=n_jobs,
+                    gs = BayesSearchCV(pipeline, gs_params, cv=cv, n_jobs=n_jobs,
                         verbose=verbose, scoring=scoring, refit=refit,
                         return_train_score=True)
+                    #print(np.argwhere(np.isnan(X)))
+                    #print(np.argwhere(np.isinf(X)))
+                    #print(np.argwhere(np.isnan(y)))
+                    #print(np.argwhere(np.isinf(y)))
                     gs.fit(X,y)
                     self.grid_searches[dimr_label + '_' + key] = gs    
 
@@ -194,25 +202,36 @@ def plot_coefficients(classifier, feature_names, top_features=20):
 #import our data, then format it #
 ##################################
 
-data1 = pd.read_csv('data/full_feature_matrix.coboundp.dataset1.tsv',sep='\t', header=0)
-data2 = pd.read_csv('data/full_feature_matrix.coboundp.merged.validated.tsv',sep='\t', header=0)
+data2 = pd.read_csv('data/full_feature_matrix.promPOL.subset2.tsv',sep='\t', header=0)
 
 #data2['source'] = 'gasperini'
 #data1['source'] = 'fulco'
 #for some reason MCM5 didnt run on the new dataset, so remove that col
-data1 = data1.loc[:,data1.columns != 'MCM5']
-data1 = data1.loc[:,data1.columns != 'MCM5_p_cobound']
 #data = pd.concat([data1,data2],ignore_index=True)
 #normalize all non binary variables
 normalizer = preprocessing.MinMaxScaler()
-data1['activity'] = normalizer.fit_transform(data1[["activity"]].values)
-data1['contact'] = normalizer.fit_transform(data1[["contact"]].values)
-data1['abc_score'] = normalizer.fit_transform(data1[["abc_score"]].values)
-
 
 data2['activity'] = normalizer.fit_transform(data2[["activity"]].values)
 data2['contact'] = normalizer.fit_transform(data2[["contact"]].values)
 data2['abc_score'] = normalizer.fit_transform(data2[["abc_score"]].values)
+data2['degree'] = normalizer.fit_transform(data2[["degree"]].values)
+data2['effect_size'] = normalizer.fit_transform(data2[["effect_size"]].values)
+data2['sig'] = data2.sig.astype(int)
+
+#normalize promoter rnapol signal
+for i in ['POLR2A_promoter', 'POLR2AphosphoS2_promoter', 'POLR2AphosphoS5_promoter', 'POLR2B_promoter', 'POLR2G_promoter', 'POLR3A_promoter', 'POLR3G_promoter']:
+    data2[i] = normalizer.fit_transform(data2[[i]].values)
+
+
+#add genomic distance param
+data2['midpoint'] = (data2['stop']-data2['start'])/2
+data2['distance'] = abs(data2['midpoint'] - data2['tss'])
+data2.drop(columns=['midpoint'],inplace=True)
+data2['distance'] = normalizer.fit_transform(data2[["distance"]].values)
+
+#remove contact cols
+data2.drop(columns=['contact','degree'],inplace=True)
+
 
 #activity histograms for data1 v 2
 #plt.hist(data1['activity'], density=True, bins=50)
@@ -224,86 +243,70 @@ data2['abc_score'] = normalizer.fit_transform(data2[["abc_score"]].values)
 #plt.savefig('data/ds2_activity_histogram.png')
 
 #code roles as binary
-data1['e1'] = 0
-data1['e2'] = 0
-data1['e3'] = 0
+####data2['e1'] = 0
+####data2['e2'] = 0
+####data2['e3'] = 0
 
-data2['e1'] = 0
-data2['e2'] = 0
-data2['e3'] = 0
+####data2.loc[data2['role']=='E1','e1'] = 1
+####data2.loc[data2['role']=='E2','e2'] = 1
+####data2.loc[data2['role']=='E3','e3'] = 1
 
-data1.loc[data1['role']=='E1','e1'] = 1
-data1.loc[data1['role']=='E2','e2'] = 1
-data1.loc[data1['role']=='E3','e3'] = 1
-
-data2.loc[data2['role']=='E1','e1'] = 1
-data2.loc[data2['role']=='E2','e2'] = 1
-data2.loc[data2['role']=='E3','e3'] = 1
-
-data1.drop(labels=['chr','start','stop','tss','classification','gene','role','abc_score'], axis=1, inplace=True)
-data1.dropna(inplace=True)
-
-data2.drop(labels=['chr','start','stop','tss','classification','gene','role','abc_score'], axis=1, inplace=True)
+data2.drop(labels=['chr','start','stop','tss','gene','role','abc_score','effect_size'], axis=1, inplace=True)
 data2.dropna(inplace=True)
 
-pos_data1 = data1.loc[data1['sig']==1,]
-neg_data1 = data1.loc[data1['sig']==0,].sample(200)
-
 pos_data2 = data2.loc[data2['sig']==1,]
-neg_data2 = data2.loc[data2['sig']==0,].sample(8000)
+neg_data2 = data2.loc[data2['sig']==0,]
 
-data1 = pd.concat([pos_data1, neg_data1])
-
-data2 = pd.concat([pos_data2, neg_data2])
-
-X1 = data1.loc[:,data1.columns != 'sig'].to_numpy()
-y1 = data1.loc[:,data1.columns == 'sig'].to_numpy().T[0]
+data2 = pd.concat([pos_data2, neg_data2]).copy()
+data2.replace([np.inf, -np.inf], np.nan)
+data2.dropna(inplace=True)
 
 X2 = data2.loc[:,data2.columns != 'sig'].to_numpy()
 y2 = data2.loc[:,data2.columns == 'sig'].to_numpy().T[0]
 
-X=np.concatenate((X1,X2), axis=0)
-y=np.concatenate((y1, y2), axis=0)
-
+#X=np.concatenate((X1,X2), axis=0)
+#y=np.concatenate((y1, y2), axis=0)
+#until I add effect_size and degree to data1, train on data2
+X=X2
+y=y2
 
 #####################################
 # define the classifiers and params #
 #####################################
+
+#in this script we use diff params for bayescv
+
 models = {
     'RandomForestClassifier':RandomForestClassifier(),
-    'LinearSVC': LinearSVC(max_iter=30000),
-    'LogisticRegression':LogisticRegression(max_iter=30000),
+    'SVC': SVC(max_iter=1500000),
+    'LogisticRegression':LogisticRegression(max_iter=1500000,solver='liblinear'),
     }
 
 params = {
-    'RandomForestClassifier':{'n_estimators':[20, 50, 100]},
-    'LinearSVC': {'C':[0.01, 0.1, 1,10]},
-    'LogisticRegression':{'C':[0.01, 0.1, 1,10]},
+    'RandomForestClassifier':{'n_estimators': Integer(20,400),'ccp_alpha':Real(0,5),'min_samples_leaf':Integer(1,10)},
+    'SVC': {'C':Real(1e-6,1e6, prior='log-uniform'),'gamma': Real(1e-6, 1e+1, prior='log-uniform'),'kernel': Categorical(['linear', 'sigmoid', 'rbf'])},
+    'LogisticRegression':{'C':Real(1e-6,1e5, prior='log-uniform')},
     }
 
 dim_reductions = {
+    'NMF':NMF(max_iter=300),
     'SelectKBest':SelectKBest(chi2),
     'PCA':PCA(iterated_power=100),
-    }
+   }
 
 dimr_params = {
-    'SelectKBest':{'k':[1,2,3,4,5,10,20,35,50,100,150] },
-    'PCA':{'n_components':[1,2,3,4,5,10]},
+    'SelectKBest':{'k':Integer(1,50)},
+    'PCA':{'n_components':Integer(1,50)},
+    'NMF':{'n_components':Integer(1,50)},
 }
 #######################
 # nested cv structure #
 #######################
 test_sz = 0.2
-nfeats = [1,2,3,4,5,10,20,35,50,100,150]
-inner_split = StratifiedKFold(n_splits=5, shuffle=True, random_state=1)
-outer_split = StratifiedKFold(n_splits=5, shuffle=True, random_state=2)
-inner_model = SelectKBest(chi2)
-pipeline = Pipeline([('kbest', inner_model), ('svc',LinearSVC(max_iter=10000))])
-inner_gridsearch = GridSearchCV(pipeline,{'kbest__k': nfeats},cv=inner_split, n_jobs=5, return_train_score=True)
-results = pd.DataFrame(columns=['k', 'inner_partition','outer_partition', 'train', 'test'])
+inner_split = StratifiedKFold(n_splits=3, shuffle=True, random_state=1)
+outer_split = StratifiedKFold(n_splits=3, shuffle=True, random_state=2)
 outer_results = pd.DataFrame()
 outer_index = 0
-feature_ranks = {}
 best_estimators = {}
 for split in outer_split.split(X,y):
     #get indices for outersplit
@@ -317,7 +320,7 @@ for split in outer_split.split(X,y):
     #init helper
     helper = EstimatorSelectionHelper(models, params, dimrs=dim_reductions, dimr_params=dimr_params)
     #helper fit on inner cv
-    helper.fit(X_split, y_split, cv=inner_split, scoring='accuracy', n_jobs=10, refit=True)
+    helper.fit(X_split, y_split, cv=inner_split, scoring=make_scorer(balanced_accuracy_score), n_jobs=10, refit=True)
     #get best performing models 
     helper.score_summary(sort_by='max_score')
     #helper performs the inner gridsearch by itself, but by using the best_estimator(method='test') command, we can run the outer gridsearch using test data
@@ -346,130 +349,11 @@ for split in outer_split.split(X,y):
     #        feature_ranks[feature] = fweights[i]*frank[i]/len(frank)
     #    else:
     #        feature_ranks[feature] += fweights[i]*frank[i]/len(frank)
-    
+pd.set_option('display.max_columns', None) 
 print(outer_results) 
 print(best_estimators)
 #save best estimators 
 for est in best_estimators:
-    joblib.dump(best_estimators[est]['clf'], 'data/trained_models/'+est+'.pkl')
+    joblib.dump(best_estimators[est]['clf'], 'data/trained_models/no_contact_models_nmf/'+est+'.pkl')
 print('Total runtime: ' + str(time.time() - tstart))    
 exit()
-print(feature_ranks)
-wrank = open('data/weighted_feature_rank.tsv','w')
-for feature in feature_ranks:
-    wrank.write(feature + '\t' + str(feature_ranks[feature]) + '\n')
-results.to_csv('data/CV_kfeat_accuracy.tsv',index=False, sep='\t')
-exit()
-#choose best performing model
-
-cmax = 0
-clf = ''
-for i in range(0, len(outer_results)):
-    if outer_results[i][1]['kbest__k']==20:
-        cmax=outer_results[i][2]
-        clf=outer_results[i][0]
-        k=outer_results[i][1]
-
-#print([int(x[1:]) for x in clf[:-1].get_feature_names_out()])        
-#plot_coefficients(clf['svc'], data1.loc[:,data1.columns != 'sig'].columns[[int(x[1:]) for x in clf[:-1].get_feature_names_out()]], 20)
-
-y_score = clf.decision_function(X[test_idx,:])#predict_proba(X_test_selected)[:, 1]
-y_test = y[test_idx]
-precision, recall, thresholds = precision_recall_curve(y_test, y_score)
-fig, ax = plt.subplots()
-ax.plot(recall, precision, color='blue')
-ax.set_title('Precision-Recall Curve k='+str(k['kbest__k']))
-ax.set_ylabel('Precision')
-ax.set_xlabel('Recall')
-plt.savefig('data/pr_curve.'+str(k['kbest__k'])+'.png')
-
-
-exit()
-
-results = []
-
-
-for train_idx, test_idx in skf.split(X,y):
-    X_train, X_test = X[train_idx], X[test_idx]
-    y_train, y_test = y[train_idx], y[test_idx]
-    clf = LinearSVC()
-    clf.fit(X_train, y_train)
-    results.append([clf.score(X_train, y_train), clf.score(X_test, y_test)])
-test_result = [x[1] for x in results]
-print('List of possible test accuracy:', test_result)
-print('\nMaximum Accuracy That can be obtained from this model is:',
-      max(test_result)*100, '%')
-print('\nMinimum Accuracy:',
-      min(test_result)*100, '%')
-print('\nOverall Accuracy:',
-      mean(test_result)*100, '%')
-print('\nStandard Deviation is:', stdev(test_result))
-
-test_result = [x[0] for x in results]
-print('List of possible train accuracy:', test_result)
-print('\nMaximum Accuracy That can be obtained from this model is:',
-      max(test_result)*100, '%')
-print('\nMinimum Accuracy:',
-      min(test_result)*100, '%')
-print('\nOverall Accuracy:',
-      mean(test_result)*100, '%')
-print('\nStandard Deviation is:', stdev(test_result))
-
-exit()
-
-X1_train, X1_test, y1_train, y1_test = train_test_split(X1, y1, test_size=test_sz)
-
-X2_train, X2_test, y2_train, y2_test = train_test_split(X2, y2, test_size=test_sz)
-
-X_train = np.concatenate((X1_train, X2_train), axis=0)
-X_test = np.concatenate((X1_test, X2_test), axis=0)
-y_train = np.concatenate((y1_train, y2_train), axis=0)
-y_test = np.concatenate((y1_test, y2_test), axis=0)
-
-#nfeat = 9 #num feat selected
-for nfeat in [100]:#[5,10,15,30,50,100,200]:
-    select = SelectKBest(chi2, k=nfeat)
-    X_train_selected = select.fit_transform(X_train,y_train)
-    #print(data.columns[model.get_support(indices=True)])
-    X_test_selected = select.transform(X_test)
-    x = data1.drop(labels=['sig'], axis=1, inplace=False)
-    out.write('k='+str(nfeat)+'\n')
-    out.write('Features: ' + ', '.join(x.columns[select.get_support()].tolist())+'\n')
-    clf = LinearSVC()
-    clf.fit(X_train_selected, y_train)
-    out.write('Training accuracy: ' + str(clf.score(X_train_selected, y_train))+'\n')
-    out.write('Test accuracy: ' + str(clf.score(X_test_selected, y_test))+'\n')
-    out.write('\n\n')
-
-    #generate coef plot
-    plot_coefficients(clf, data1.loc[:,data1.columns != 'sig'].columns[select.get_support()], 40)
-    #next generate pr curve
-
-    y_score = clf.decision_function(X_test_selected)#predict_proba(X_test_selected)[:, 1]
-    precision, recall, thresholds = precision_recall_curve(y_test, y_score)
-    fig, ax = plt.subplots()
-    ax.plot(recall, precision, color='blue')
-    ax.set_title('Precision-Recall Curve k='+str(nfeat))
-    ax.set_ylabel('Precision')
-    ax.set_xlabel('Recall')
-    plt.savefig('data/pr_curve.'+str(nfeat)+'.png')
-exit()
-mean_scores = np.array(grid.cv_results_["mean_test_score"])
-# scores are in the order of param_grid iteration, which is alphabetical
-mean_scores = mean_scores.reshape(len(C_OPTIONS), -1, len(N_FEATURES_OPTIONS))
-# select score for best C
-mean_scores = mean_scores.max(axis=0)
-bar_offsets = np.arange(len(N_FEATURES_OPTIONS)) * (len(reducer_labels) + 1) + 0.5
-
-plt.figure()
-COLORS = "bgrcmyk"
-for i, (label, reducer_scores) in enumerate(zip(reducer_labels, mean_scores)):
-    plt.bar(bar_offsets + i, reducer_scores, label=label, color=COLORS[i])
-
-plt.title("Comparing feature reduction techniques")
-plt.xlabel("Reduced number of features")
-plt.xticks(bar_offsets + len(reducer_labels) / 2, N_FEATURES_OPTIONS)
-plt.ylabel("Enhancer-promoter classification F1 score")
-plt.ylim((0, 1))
-plt.legend(loc="upper left")
-plt.savefig('feature_select_compare.png')

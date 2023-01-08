@@ -59,30 +59,46 @@ lines = []
 for i in gas_missing_eg:
     lines.append('\t'.join([str(j) for j in i])+'\n')
 
-with open('data/gasperini_missing_eg_pairs.tsv','w') as f:
-    f.writelines(lines)
+#with open('data/gasperini_missing_eg_pairs.tsv','w') as f:
+#    f.writelines(lines)
 
 missing_found = 0
+eg_pairs_not_found = []
+genes_missing = []
 eg_pairs_found = []
 resolution = 5000
 for i in gas_missing_eg:
     chrm, start, stop, gene = i
     node = '_'.join([chrm, str(int(np.floor(start/resolution)*resolution)), str(int(np.floor(start/resolution)*resolution+resolution))])
     try: 
-        network = pkl.load(open('data/gene_networks/'+gene+'_network.pkl','rb'))
+        network = pkl.load(open('data/gene_networks_validated_2/'+gene+'_network.pkl','rb'))
     except:
+        genes_missing.append(gene)
         continue
     if node in network.vs['name']:
         missing_found += 1        
         eg_pairs_found.append(i)
-
-print('Number of Gasperini EG pairs in our data: ' + str(us_in_gas))
-print('Number of Gasperini EG pairs NOT in our data: ' + str(us_not_in_gas))
-print('Total: ' + str(len(enhancers)))
-
-print('Number of missing EG pairs found in unpruned networks: ' + str(missing_found))
+    else:
+        eg_pairs_not_found.append(i)
 
 
+print('Number of Gasperini EG pairs in our data: ' + str(gas_in_us))
+print('Number of Gasperini EG pairs NOT in our data: ' + str(gas_not_in_us))
+
+print('Number of missing EG pairs found in updated networks: ' + str(missing_found))
+print('Remaining missing EG pairs: ' + str(gas_not_in_us - missing_found))
+
+print('Number of genes missing from network dir: ' + str(len(genes_missing)))
+print('Number of EG pairs missing from genes we have: ' + str(len(eg_pairs_not_found)))
+
+
+lines2 = []
+for i in eg_pairs_not_found:
+    lines2.append('\t'.join([str(j) for j in i])+'\n')
+with open('data/missing_eg_pairs.txt','w') as f:
+    f.writelines(lines2)
+
+exit()
 lines1 = []
 for i in eg_pairs_found:
     lines1.append('\t'.join([str(j) for j in i])+'\n')

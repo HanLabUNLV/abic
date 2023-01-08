@@ -2,8 +2,8 @@ import pandas as pd
 from os import listdir as ls
 
 #import data, add columns
-data = pd.read_csv('data/full_feature_matrix.subset1.tsv',sep='\t')
-tfs = data.columns[11:].tolist()
+data = pd.read_csv('data/full_feature_matrix.promPOL.subset2.tsv',sep='\t')
+tfs = data.columns[12:-7].tolist()
 cotf = [x + '_p_cobound' for x in tfs]
 
 newdata = pd.concat([data, pd.DataFrame(columns=cotf)])
@@ -21,5 +21,9 @@ for fn in ls(cobind_dir):
 
 #flip 0s to 1s            
 for result in results:
-   newdata.at[int(result[0]),result[1]+'_p_cobound'] = 1 
-newdata.to_csv('data/full_feature_matrix.subset1.coboundp.tsv',sep='\t',index=False)
+   newdata.at[int(result[0]),result[1]+'_p_cobound'] = 1
+
+for col in cotf:
+    newdata[col] = newdata[col].astype(int)
+
+newdata.to_csv('data/full_feature_matrix.promPOL.subset2.coboundp.tsv',sep='\t',index=False)

@@ -1,7 +1,7 @@
 import pandas as pd
 import pyranges as pr
  
-enhancers = pd.read_csv('data/full_feature_matrix.coboundp.merged.tsv', sep='\t')
+enhancers = pd.read_csv('data/full_feature_matrix.validated2.tsv', sep='\t')
 #enhancers  = enhancers.rename(columns={'end':'stop'})
 s2a = pd.read_csv('data/s2a.bed', sep='\t', header=None)
 s2a = s2a.rename(columns={0: 'Chromosome', 1:'Start', 2:'End'})
@@ -37,7 +37,7 @@ edf = df_all.loc[:,['chr','start','stop','gene']].copy()
 edf.dropna(axis=0, how='all', inplace=True)
 epr = pr.PyRanges(edf.rename(columns={'chr':'Chromosome','start':'Start','stop':'End'}))
 #to do this we iterate through table s2b
-log = open('logs/positives_missing_from_feature_matrix.log','w')
+log = open('logs/positives_missing_from_feature_matrix.2.log','w')
 total_changed =0
 for idx, row in s2b.iterrows():
     chrm = row['Chromosome']
@@ -66,7 +66,7 @@ for idx, row in s2b.iterrows():
 #print(df_all['sig'].value_counts())
 
 #df_all.rename(columns={'stop':'end'})
-df_all.to_csv('data/full_feature_matrix.coboundp.merged.validated.tsv',sep='\t', index=False)
+df_all.to_csv('data/full_feature_matrix.revalidated2.tsv',sep='\t', index=False)
 
 
 

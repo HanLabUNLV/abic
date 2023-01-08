@@ -10,10 +10,20 @@ import os
 
 #load in enhancers
 enhancers = []
-efile = 'data/subset1_enhancers.bed'
+efile = 'data/validated_enhancers.bed'
 with open(efile,'r') as f:
     for line in f:
-        enhancers.append('_'.join(line.strip().split('\t')))
+        ename = '_'.join(line.strip().split('\t'))
+        if ename not in enhancers:
+            enhancers.append(ename)
+#promoters too
+pfile = 'data/gene_tss.gas.long.tsv'
+with open(pfile,'r') as f:
+    for line in f:
+        chrm, gene, tss = line.strip().split('\t')
+        pname = '_'.join([chrm, str(int(tss)-500), str(int(tss)+500)])
+        if pname not in enhancers:
+            enhancers.append(pname)
 
 #read in metadata filter out crispr experiments
 metadata = pd.read_csv('raw_data/ENCODE_ChIP/metadata.tsv',sep='\t')
@@ -29,6 +39,7 @@ for index, row in metadata.iterrows():
         TF_experiments[tf] = [row['File accession']]
     else:
         TF_experiments[tf].append(row['File accession'])
+
 #create matrix
 tf_matrix = pd.DataFrame({'enhancer':enhancers})
 for tf in TF_experiments:
@@ -44,4 +55,4 @@ for tf in TF_experiments:
             #find enhancers, set values to 1
             tf_matrix.loc[tf_matrix['enhancer'].isin(enh_names),tf] = 1
 
-tf_matrix.to_csv('data/enhancer_chipseq_featurematrix.subset1.tsv',sep='\t', index=False)
+tf_matrix.to_csv('data/enhancer_chipseq_featurematrix.validated2.tsv',sep='\t', index=False)
