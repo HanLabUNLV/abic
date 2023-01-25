@@ -1,11 +1,8 @@
 import argparse
 import time, os
-os.environ["OMP_NUM_THREADS"] = "2" # export OMP_NUM_THREADS=2
-os.environ["OPENBLAS_NUM_THREADS"] = "2" # export OPENBLAS_NUM_THREADS=2 
-os.environ["MKL_NUM_THREADS"] = "2" # export MKL_NUM_THREADS=2
-os.environ["VECLIB_MAXIMUM_THREADS"] = "2" # export VECLIB_MAXIMUM_THREADS=2
-os.environ["NUMEXPR_NUM_THREADS"] = "2" # export NUMEXPR_NUM_THREADS=2
 import joblib
+from importlib import reload
+os.environ["OMP_NUM_THREADS"] = "2" # export OMP_NUM_THREADS=2
 import numpy as np
 from  scipy.stats import rankdata as rank
 import matplotlib.pyplot as plt
@@ -40,6 +37,13 @@ pid = os.getpid()
 
 
 
+def set_num_threads(num):
+  os.environ["OMP_NUM_THREADS"] = "2" # export OMP_NUM_THREADS=2
+  #os.environ["OPENBLAS_NUM_THREADS"] = "2" # export OPENBLAS_NUM_THREADS=2 
+  #os.environ["MKL_NUM_THREADS"] = "2" # export MKL_NUM_THREADS=2
+  #os.environ["VECLIB_MAXIMUM_THREADS"] = "2" # export VECLIB_MAXIMUM_THREADS=2
+  #os.environ["NUMEXPR_NUM_THREADS"] = "2" # export NUMEXPR_NUM_THREADS=2
+  
 
 
 #helper class that allows you to iterate over multiple classifiers within the nested for loop
@@ -252,7 +256,8 @@ def plot_coefficients(classifier, feature_names, top_features=20):
 # define the classifiers and params #
 #####################################
 
-models = ['xgb', 'rf']
+#models = ['xgb', 'rf']
+models = ['xgb']
 #in this script we use diff params for bayescv
 #
 #models = {
@@ -271,7 +276,7 @@ models = ['xgb', 'rf']
 #      'min_child_weight' : Real(0.1, 10, 'log-uniform'),
 #      'colsample_bytree' : Real(0.8, 1, 'uniform'),
 #      'subsample' : Real(0.5, 1, 'uniform'),
-#      'gamma': (1e-9, 0.1, 'log-uniform')
+#      'gamma': (1e-30, 0.00001, 'log-uniform')
 #    },   
 #    'rf':{'n_estimators': Integer(100,300),'min_samples_leaf':Integer(1,20),
 #      'max_depth': Integer(5, 12),
@@ -313,15 +318,16 @@ def RandomGroupKFold_split(groups, n, seed=None):  # noqa: N802
     return result
 
 class Objective:
-  def __init__(self, dtrain, classifier, custom_fold, scoring, cls_weight):
+  def __init__(self, X, y, classifier, custom_fold, study_name_prefix, scoring = 'map', cls_weight = 100):
     # Hold this implementation specific arguments as the fields of the class.
-    #self.X = X 
-    #self.y = y
-    self.dtrain = dtrain
+    self.X = X 
+    self.y = y
+    #self.dtrain = dtrain
     self.classifier = classifier
     self.custom_fold = custom_fold
     self.scoring = scoring
-    self.cls_weight = 1
+    self.cls_weight = cls_weight
+    self.study_name_prefix = study_name_prefix
 
   def __call__(self, trial):
     # Calculate an objective value by using the extra arguments.
@@ -336,52 +342,56 @@ class Objective:
           "random_state" : RANDOM_SEED,
           "objective": "binary:logistic",
           # use exact for small featuresset.
-          "tree_method": "hist",
+          "tree_method": "auto",
           # n_estimator
-          "num_boost_round": trial.suggest_int("num_boost_round", 50, 400),
+          "num_boost_round": trial.suggest_int("num_boost_round", 100, 600),
           # defines booster
-          "booster": trial.suggest_categorical("booster", ["gbtree", "dart"]),
+          "booster": trial.suggest_categorical("booster", ["gbtree"]),
+          #"booster": trial.suggest_categorical("booster", ["dart"]),
           # maximum depth of the tree, signifies complexity of the tree.
-          "max_depth": trial.suggest_int("max_depth", 2, 10),
+          #"max_depth": trial.suggest_int("min_child_weight", 3, 4),
+          "max_depth": 3,
           # minimum child weight, larger the term more conservative the tree.
-          "min_child_weight": trial.suggest_int("min_child_weight", 1, 20),
+          "min_child_weight": trial.suggest_int("min_child_weight", 10, 16),
           # learning rate
-          "eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
+          #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
+          "eta": 0.01,
           # sampling ratio for training features.
-          "subsample": trial.suggest_float("subsample", 0.4, 0.8),
+          "subsample": trial.suggest_float("subsample", 0.5, 0.6),
           # sampling according to each tree.
-          "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1),
+          "colsample_bytree": trial.suggest_float("colsample_bytree", 0.75, 0.85),
           # L2 regularization weight.
-          "lambda": trial.suggest_float("lambda", 1e-9, 0.01, log=True),
+          #"lambda": trial.suggest_float("lambda", 1e-9, 0.01, log=True),
           # L1 regularization weight.
-          "alpha": trial.suggest_float("alpha", 1e-9, 0.2, log=True),
+          #"alpha": trial.suggest_float("alpha", 1e-9, 0.2, log=True),
           # defines how selective algorithm is.
-          "gamma": trial.suggest_float("gamma", 1e-9, 1.0, log=True),
-          "grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
+          "gamma": trial.suggest_float("gamma", 10, 12),
+          #"grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
           "scale_pos_weight": np.sqrt(self.cls_weight),
           "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
           "max_delta_step" : 1,
       }
       if param["booster"] == "dart":
-          param["sample_type"] = trial.suggest_categorical("sample_type", ["uniform", "weighted"])
-          param["normalize_type"] = trial.suggest_categorical("normalize_type", ["tree", "forest"])
-          param["rate_drop"] = trial.suggest_float("rate_drop", 1e-8, 1.0, log=True)
-          param["skip_drop"] = trial.suggest_float("skip_drop", 1e-8, 1.0, log=True)
+          #param["sample_type"] = trial.suggest_categorical("sample_type", ["uniform", "weighted"])
+          #param["normalize_type"] = trial.suggest_categorical("normalize_type", ["tree", "forest"])
+          param["rate_drop"] = trial.suggest_float("rate_drop", 1e-8, 0.5, log=True)
+          param["skip_drop"] = trial.suggest_float("skip_drop", 0.5, 1, log=True)
     elif self.classifier == "rf":
       param = { 
           "verbosity": 0,
           "random_state" : RANDOM_SEED,
           "objective": "binary:logistic",
           # use exact for small featuresset.
-          "tree_method": "hist",
+          "tree_method": "auto",
           # num_parallel_tree
           "num_parallel_tree": trial.suggest_int("num_parallel_tree", 50, 300),
           # maximum depth of the tree, signifies complexity of the tree.
           "max_depth": trial.suggest_int("max_depth", 2, 10),
           # minimum child weight, larger the term more conservative the tree.
-          "min_child_weight": trial.suggest_int("min_child_weight", 1, 20),
+          "min_child_weight": trial.suggest_int("min_child_weight", 10, 20),
           # learning rate
-          "eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
+          #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
+          "eta": 0.05,
           # sampling ratio for training features.
           "subsample": trial.suggest_float("subsample", 0.4, 0.8),
           # sampling by node
@@ -396,39 +406,96 @@ class Objective:
       param['num_boost_round'] = 1
 
     # set up cross-validation
-    pruning_callback = optuna.integration.XGBoostPruningCallback(trial, "test-map")
-    #cv_results = xgb.cv(param, self.dtrain, nfold=self.cv, stratified=True, callbacks=[pruning_callback])
-    cv_results = xgb.cv(param, self.dtrain, folds=self.custom_fold, early_stopping_rounds=100, callbacks=[pruning_callback])
-    trial.set_user_attr("n_estimators", len(xgb_cv_results))
+    idx = 0
+    cv_scores = np.empty(len(self.custom_fold))
+    for (train_idx, test_idx) in self.custom_fold:
+        X_train, X_test = self.X.iloc[train_idx], self.X.iloc[test_idx]
+        y_train, y_test = self.y[train_idx], self.y[test_idx]
+        print(X_train)
+        print(X_test)
+        print(y_train)
+        print(y_test)
+        dtrain = xgb.DMatrix(X_train, label=y_train)
+        dtest = xgb.DMatrix(X_test, label=y_test)
+        evals_result = {}
+        pruning_callback = optuna.integration.XGBoostPruningCallback(trial, "validation-map")
+        if idx == 0:
+            xgb_clf_cv = xgb.train(params=param, dtrain=dtrain, 
+                              num_boost_round=param['num_boost_round'],
+                              evals=[(dtrain, "train"),(dtest, "validation")],
+                              early_stopping_rounds=300,
+                              evals_result=evals_result,
+                              callbacks=[pruning_callback]
+                              )
+        else:
+            xgb_clf_cv = xgb.train(params=param, dtrain=dtrain, 
+                              num_boost_round=param['num_boost_round'],
+                              evals=[(dtrain, "train"),(dtest, "validation")],
+                              early_stopping_rounds=300,
+                              evals_result=evals_result,
+                              )
 
-    # Save cross-validation results.
-    cv_results.to_csv(outdir+'/'+'cv.'+filenamesuffix+'.'+str(pid)+'.'+str(trial.number)+'.txt', index=False, sep='\t')
+        print('')
+        print('Access params through a loop:')
+        for p_name, p_vals in param.items():
+            print('- {}'.format(p_name))
+            print('      - {}'.format(p_vals))
+        print('')
+ 
+        print('')
+        print('Access metrics through a loop:')
+        for e_name, e_mtrs in evals_result.items():
+            print('- {}'.format(e_name))
+            for e_mtr_name, e_mtr_vals in e_mtrs.items():
+                print('   - {}'.format(e_mtr_name))
+                print('      - {}'.format(e_mtr_vals))
+        print('')
+        cv_scores[idx] = evals_result['validation']['map'][-1]
+        # Save cross-validation results.
+        pd.DataFrame.from_dict(evals_result).to_csv(outdir+'/'+self.study_name_prefix+'.cv.'+filenamesuffix+'.'+str(pid)+'.'+str(idx)+'.txt', index=False, sep='\t')
 
-    mean_map = cv_results["test-map-mean"].values[-1]
+        idx=idx+1
+
+    #pruning_callback = optuna.integration.XGBoostPruningCallback(trial, "test-map")
+    #cv_results = xgb.cv(param, self.dtrain, folds=self.custom_fold, early_stopping_rounds=100, callbacks=[pruning_callback])
+    
+    #trial.set_user_attr("n_estimators", len())
+    print(param['scale_pos_weight'])
+    print(np.sqrt(self.cls_weight))
+    trial.set_user_attr("scale_pos_weight", np.sqrt(self.cls_weight))
+
+    best_iteration = xgb_clf_cv.best_iteration
+    print('best_iteration: ' + str(best_iteration))
+    trial.set_user_attr("best_iteration", best_iteration)
+
+    #mean_map = cv_results["test-map-mean"].values[-1]
+    print(cv_scores)
+    mean_map = np.mean(cv_scores)
+    print(mean_map)
     return mean_map
 
 
 # class outer folds
 class OuterFolds:
-    def __init__(self, foldsplit, nfold, groups, storage, scoring):
+    def __init__(self, foldsplit, nfold, groups, storage, study_name_prefix, scoring):
       # Hold this implementation specific arguments as the fields of the class.
-      self.study_name_prefix="groupcv."
+      self.study_name_prefix=study_name_prefix
       self.outer_split = foldsplit
       self.nfold = nfold
       self.groups = groups
       self.storage = storage
       self.scoring = scoring
       self.outer_results = pd.DataFrame()
-      self.X_splits = {}
-      self.y_splits = {}
-      self.group_splits = {}
-      self.dtrains = {}
-      self.dtrainfilenames = {}
-      self.X_tests = {}
-      self.y_tests = {}
-      self.group_tests = {}
-      self.dtests = {}
-      self.dtestfilenames = {}
+      #self.X_splits = {}
+      #self.y_splits = {}
+      #self.group_splits = {}
+      #self.dtrains = {}
+      #self.dtrainfilenames = {}
+      #self.X_tests = {}
+      #self.y_tests = {}
+      #self.group_tests = {}
+      #self.dtests = {}
+      #self.dtestfilenames = {}
 
     # Set up outer folds for testing 
     def create_outer_fold(self, X, y):
@@ -446,12 +513,12 @@ class OuterFolds:
             X_split = X.iloc[train_idx, :].copy()
             y_split = y.iloc[train_idx].copy()
             group_train = self.groups.iloc[train_idx]
-            X_split.to_csv(outdir +'/'+'Xsplit.'+str(outer_index)+'.txt', sep='\t')
-            y_split.to_csv(outdir +'/'+'ysplit.'+str(outer_index)+'.txt', sep='\t')
-            group_train.to_csv(outdir +'/'+'groupsplit.'+str(outer_index)+'.txt', sep='\t')
-            self.X_splits[outer_index] = X_split
-            self.y_splits[outer_index] = y_split
-            self.group_splits[outer_index] = group_train
+            X_split.to_csv(outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t')
+            y_split.to_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t')
+            group_train.to_csv(outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt', sep='\t')
+            #self.X_splits[outer_index] = X_split
+            #self.y_splits[outer_index] = y_split
+            #self.group_splits[outer_index] = group_train
 
             cols = X_split.columns
             scaler = preprocessing.MinMaxScaler()
@@ -460,25 +527,25 @@ class OuterFolds:
             dtrain = xgb.DMatrix(X_split, label=y_split)
             dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
             dtrain.save_binary(dtrainfilename)
-            self.dtrains[outer_index] = dtrain
-            self.dtrainfilenames[outer_index] = dtrainfilename
+            #self.dtrains[outer_index] = dtrain
+            #self.dtrainfilenames[outer_index] = dtrainfilename
             joblib.dump(scaler, outdir +'/'+'scaler.'+str(outer_index)+'.gz')
 
             X_test = X.iloc[test_idx,:].copy()
             y_test = y.iloc[test_idx].copy()
             group_test = self.groups.iloc[test_idx]
-            X_test.to_csv(outdir +'/'+ str(pid)+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
-            y_test.to_csv(outdir +'/'+ str(pid)+'.ytest.'+str(outer_index)+'.txt', sep='\t')
-            group_test.to_csv(outdir +'/'+'grouptest.'+str(outer_index)+'.txt', sep='\t')
-            self.X_tests[outer_index] = X_test
-            self.y_tests[outer_index] = y_test
-            self.group_tests[outer_index] = group_test
+            X_test.to_csv(outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
+            y_test.to_csv(outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt', sep='\t')
+            group_test.to_csv(outdir +'/'+self.study_name_prefix+'.grouptest.'+str(outer_index)+'.txt', sep='\t')
+            #self.X_tests[outer_index] = X_test
+            #self.y_tests[outer_index] = y_test
+            #self.group_tests[outer_index] = group_test
             X_test = pd.DataFrame(scaler.transform(X_test), columns = cols)
             dtest = xgb.DMatrix(X_test) 
             dtestfilename = outdir +'/'+'dtest.'+str(outer_index)+'.data'
             dtest.save_binary(dtestfilename)
-            self.dtests[outer_index] = dtest
-            self.dtestfilenames[outer_index] = dtestfilename
+            #self.dtests[outer_index] = dtest
+            #self.dtestfilenames[outer_index] = dtestfilename
 
             storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
             for model in models: 
@@ -491,7 +558,7 @@ class OuterFolds:
             outer_index += 1
 
 
-    def optimize_hyperparams(self, model, outer_index, n_inner_fold=3, scoring='map'):
+    def optimize_hyperparams(self, model, outer_index, n_inner_fold=4, scoring='map'):
         #outer_index = 0
         #for classifier, folds in self.helper.studies.items():
             #print(classifier)
@@ -502,16 +569,17 @@ class OuterFolds:
         study_name = self.study_name_prefix+model+"."+str(outer_index)
         study = optuna.load_study(study_name=study_name, storage=self.storage) 
         print("Loaded study  %s with  %d trials." % (study_name, len(study.trials)))
-        X_split = pd.read_csv(outdir +'/'+'Xsplit.'+str(outer_index)+'.txt', sep='\t')
-        y_split = pd.read_csv(outdir +'/'+'ysplit.'+str(outer_index)+'.txt', sep='\t')
+        X_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
+        print(X_split)
+        y_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
         y_split = y_split['Significant']
+        print(y_split)
         counter = Counter(y_split)
         estimate = counter[0] / counter[1]
         cls_weight = (y_split.shape[0] - np.sum(y_split)) / np.sum(y_split)
         dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
-        if (self.dtrains == {}): 
-            self.dtrains[outer_index] = xgb.DMatrix(dtrainfilename)
-        group_split = pd.read_csv(outdir +'/'+'groupsplit.'+str(outer_index)+'.txt', sep='\t')
+        dtrain = xgb.DMatrix(dtrainfilename)
+        group_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
         group_split = group_split['group']
         
         #run Optuna search with inner search CV on outer split data 
@@ -520,7 +588,7 @@ class OuterFolds:
         for split in inner_splits.split(X_split,y_split,group_split):
             train_idx, test_idx = split
             custom_fold.append((train_idx, test_idx))
-        study.optimize(Objective(self.dtrains[outer_index], model, custom_fold, scoring, cls_weight), n_trials=2000, timeout=600, n_jobs=1)  # will run 4 process to cover 2000 approx trials 
+        study.optimize(Objective(X_split, y_split, model, custom_fold, self.study_name_prefix+str(outer_index), scoring, cls_weight), n_trials=2000, timeout=600, n_jobs=1)  # will run 4 process to cover 2000 approx trials 
        
     # test and summarize outer fold results based on best hyperparms
     def test_results(self):
@@ -539,40 +607,54 @@ class OuterFolds:
                 trial = study.best_trial
 
                 print("  Value: {}".format(trial.value))
+                print("  best_iteration: {}"+str(trial.user_attrs['best_iteration']))
                 print("  Params: ")
                 for key, value in trial.params.items():
                     print("    {}: {}".format(key, value))
-                print("  Number of estimators: {}".format(trial.user_attrs["n_estimators"]))
+                #print("  Number of estimators: {}".format(trial.user_attrs["n_estimators"]))
+                print("  scale_pos_weight: {}".format(trial.user_attrs["scale_pos_weight"]))
 
                 params = trial.params
-                y_split = self.y_splits[outer_index]
-                counter = Counter(y_split)
-                estimate = counter[0] / counter[1]
-                cls_weight = (y_split.shape[0] - np.sum(y_split)) / np.sum(y_split)
-                params['scale_pos_weight'] = np.sqrt(cls_weight)
+                #print("params[scale_pos_weight]")
+                #print(params['scale_pos_weight'])
+
+                #y_split = pd.read_csv(outdir +'/'+'ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+                #y_split = y_split['Significant']
+                #counter = Counter(y_split)
+                #estimate = counter[0] / counter[1]
+                #cls_weight = (y_split.shape[0] - np.sum(y_split)) / np.sum(y_split)
+                #params['scale_pos_weight'] = np.sqrt(cls_weight)
+                params['scale_pos_weight'] = trial.user_attrs["scale_pos_weight"]
                 params['objective'] = "binary:logistic" 
                 if (classifier == 'rf'):
                     params['num_boost_round'] = 1
-                dtrain = self.dtrains[outer_index]
-                xgb_clf_tuned_2 = xgb.train(params=params, dtrain=dtrain, num_boost_round=params['num_boost_round'])
+                dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
+                dtrain = xgb.DMatrix(dtrainfilename)
+                xgb_clf_tuned_2 = xgb.train(params=params, dtrain=dtrain, num_boost_round=trial.user_attrs['best_iteration'])
+                #xgb_clf_tuned_2 = xgb.train(params=params, dtrain=dtrain, num_boost_round=params['num_boost_round'])
                 lst_vars_in_model = xgb_clf_tuned_2.feature_names
                 print(lst_vars_in_model)
                 featurenames = pd.DataFrame({"features":lst_vars_in_model})
-                featurenames.to_csv(outdir+'/'+'featurenames'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
-                best_ntree_limit = xgb_clf_tuned_2.best_ntree_limit
-                print(best_ntree_limit)
+                featurenames.to_csv(outdir+'/'+self.study_name_prefix+'.featurenames'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
+                best_iteration = xgb_clf_tuned_2.best_iteration
+                print("new best_iteration: "+str(best_iteration))
                 xgb_clf_tuned_2.save_model('data/trained_models/mira_data/save'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.json')
                 xgb_clf_tuned_2.dump_model('data/trained_models/mira_data/dump'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.json')
                 
-                dtest = self.dtests[outer_index]
-                y_pred_prob = xgb_clf_tuned_2.predict(dtest)
+                X_test = pd.read_csv(outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+                y_test = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+                y_test = y_test['Significant']
+                print(y_test)
+                dtestfilename = outdir +'/'+'dtest.'+str(outer_index)+'.data'
+                dtest = xgb.DMatrix(dtestfilename)
+                y_pred_prob = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration)
+                print(y_pred_prob)
                 y_pred = [round(value) for value in y_pred_prob]
-                y_test = self.y_tests[outer_index]
                 test_pd = pd.DataFrame(y_pred, columns=['pred'], index=y_test.index)
                 y_res = pd.merge(test_pd, y_test, left_index=True, right_index=True)
                 #res = pd.merge(y_res, pd.DataFrame(X_test, columns=X_test_columns, index=X_test_index), left_index=True, right_index=True)
-                res = pd.merge(y_res, self.X_tests[outer_index], left_index=True, right_index=True)
-                res.to_csv(outdir+'/'+'confusion.'+filenamesuffix+'.'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
+                res = pd.merge(y_res, X_test, left_index=True, right_index=True)
+                res.to_csv(outdir+'/'+self.study_name_prefix+'.confusion.'+filenamesuffix+'.'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
                 # Data to plot precision - recall curve
                 precision, recall, thresholds = precision_recall_curve(y_test, y_pred_prob, pos_label = 1)
                 print(precision)
@@ -618,9 +700,11 @@ if __name__ == "__main__":
   parser.add_argument('--outdir', default='.', help="directory containing edgelist and vertices files")
   parser.add_argument('--chr', default='all', help="chromosome")
   parser.add_argument("--port", required=True, help="postgres port for storage")
+  parser.add_argument("--studyname", required=True, help="study name prefix")
   parser.add_argument("--opt", action='store_true', help="parallel optimize") # if on, add parallel optimizers only
   parser.add_argument("--model", default='all', help="choose one of xgb, rf, lr only when optimizing")
   parser.add_argument("--outerfold", default='all', help="choose one of each outer fold only when optimizing")
+  parser.add_argument("--test", action='store_true', help="gather test results based on tuned model") # if on, gather test results only
 
   args=parser.parse_args()
   pid = os.getpid()
@@ -629,9 +713,11 @@ if __name__ == "__main__":
   chromosome = args.chr
   outdir = args.outdir
   postgres_port = args.port
+  study_name_prefix = args.studyname+'.'
   optimize_only = args.opt
   classifier = args.model
   outerfold = args.outerfold
+  test_only = args.test
 
   filenamesuffix = ''
 
@@ -639,7 +725,7 @@ if __name__ == "__main__":
   #import our data, then format it #
   ##################################
 
-  data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.erole.grouped.txt',sep='\t', header=0)
+  data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt',sep='\t', header=0)
   data2 = data2.loc[:,~data2.columns.str.match("Unnamed")]
   #data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.eindirect.txt',sep='\t', header=0)
   #data2 = data2.loc[data2['e1']==1,]
@@ -689,16 +775,17 @@ if __name__ == "__main__":
   y = target
 
   # create outer fold object
-  nfold = 3
+  nfold = 5
   #outer_split = StratifiedKFold(n_splits=nfold, shuffle=True, random_state=RANDOM_SEED)
   outer_split = StratifiedGroupKFold(n_splits=nfold, shuffle=True, random_state=RANDOM_SEED)
   storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
-  outerFolds = OuterFolds(outer_split, nfold, groups, storage, '')
-  if (optimize_only == False): 
-      outerFolds.create_outer_fold(X, y)
+  outerFolds = OuterFolds(outer_split, nfold, groups, storage, study_name_prefix, '')
+  if (optimize_only == True): 
+      outerFolds.optimize_hyperparams(classifier, outerfold)
+  elif (test_only == True):
       outerFolds.test_results()
   else:
-      outerFolds.optimize_hyperparams(classifier, outerfold)
+      outerFolds.create_outer_fold(X, y)
   storage.remove_session()
 
 
