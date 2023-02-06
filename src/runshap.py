@@ -27,6 +27,8 @@ from optuna import create_study, logging
 from optuna.pruners import MedianPruner
 from optuna.integration import XGBoostPruningCallback
 from collections import Counter
+import glob
+import shap
 
 RANDOM_SEED = 42
 
@@ -430,32 +432,28 @@ class Objective:
     return mean_map
 
 
-# python src/apply_model.py  --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run --modelfile /data8/han_lab/mhan/abcd/data/trained_models/mira_data/save38667.xgb.0.json --scalerfile /data8/han_lab/mhan/abcd/run2/38667.scaler.0.gz --features /data8/han_lab/mhan/abcd/run2/38667.Xtest.0.txt --targets /data8/han_lab/mhan/abcd/run2/38667.ytest.0.txt --featurenames /data8/han_lab/mhan/abcd/run2/featurenames38667.xgb.0.txt
 
-# python -i src/apply_model.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run2 --modelfile /data8/han_lab/mhan/abcd/data/trained_models/mira_data/save38667.xgb.0.json --scalerfile /data8/han_lab/mhan/abcd/run2/38667.scaler.0.gz --features /data8/han_lab/mhan/abcd/data/Fulco/Fulco2019.CRISPR.ABC.TF.txt --targets /data8/han_lab/mhan/abcd/data/Fulco/Fulco2019.CRISPR.ABC.TF.target.txt --featurenames /data8/han_lab/mhan/abcd/run2/featurenames38667.xgb.0.txt
-
+# python -i src/runshap.py --modeldir run.newtrain/run.newtrain10 --studyname newtrain10 --outdir run.applymodel/newtrain10/
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
-  parser.add_argument('--dir', required=True, help="directory containing edgelist and vertices files")
-  parser.add_argument('--outdir', default='.', help="directory containing edgelist and vertices files")
+  parser.add_argument('--modeldir', required=True, help="directory containing data and model files")
+  parser.add_argument('--studyname', required=True, help="studyname prefix for data files") 
+  parser.add_argument('--outdir', default='.', help="directory to save shap results")
   parser.add_argument('--chr', default='all', help="chromosome")
-  parser.add_argument('--scalerfile', required=True, help="scaler saved after training in json file")
-  parser.add_argument('--modelfile', required=True, help="model saved after training in json file")
-  parser.add_argument('--features', required=True, help="feature matrix ")
-  parser.add_argument('--targets', help="target truth to compare for evaluation")
-  parser.add_argument('--featurenames', required=True, help="feature names saved after training in csv file")
 
   args=parser.parse_args()
   pid = os.getpid()
 
-  base_directory = args.dir
-  chromosome = args.chr
+  nfold = 4
+  modeldir = args.modeldir
+  studyname = args.studyname
   outdir = args.outdir
-  scalerfile = args.scalerfile
-  modelfile = args.modelfile
-  features = args.features
-  targets = args.targets
-  featurenames = args.featurenames
+  chromosome = args.chr
+  scalerfile = ''
+  modelfile = ''
+  features = ''
+  targets = ''
+  featurenames = ''
 
   filenamesuffix = ''
 
@@ -463,111 +461,202 @@ if __name__ == "__main__":
   #import our data, then format it #
   ##################################
 
-  X_test = pd.read_csv(features, sep='\t', index_col=0)
-  X_test = X_test.loc[:,~X_test.columns.str.match("Unnamed")]
-  y_test = pd.read_csv(targets, sep='\t', index_col=None)
-  y_test = y_test.loc[:,~y_test.columns.str.match("Unnamed")]
-  y_test = y_test['Significant'].astype(int)
-  print(y_test)
-  print(str(sum(y_test))+'/'+str(len(y_test)))
+  eroles = pd.read_csv('data/Gasperini/Gasperini2019.at_scale.erole.txt', sep="\t", index_col=0)
+  print(eroles)
+  outer_index = 0
+  modelFilenamesList = glob.glob(modeldir+'/save*.json')
 
-  # load featurenames we need
-  featurenames_in_training = pd.read_csv(featurenames,sep='\t')
-  X_test = X_test.reindex(columns = featurenames_in_training['features'])
+  list_importances = []
+  list_shap_values = []
+  X_test = pd.read_csv(modeldir +'/'+studyname+'..Xtest.0.txt', sep='\t', index_col=0)
+  print(X_test)
+  X = pd.DataFrame(columns = X_test.columns)
+  print(X)
+  y = pd.DataFrame(columns = ['Significant'])
 
-  # load preprocessor 
-  scaler = joblib.load(scalerfile)
-  cols = X_test.columns
-  X_test = pd.DataFrame(scaler.transform(X_test), columns = cols)
+  for outer_index in range(nfold):
+      modelfile = modelFilenamesList[outer_index]
+      print(modelfile)
 
-  # load model
-  xgb_clf_tuned_2 = xgb.Booster()
-  xgb_clf_tuned_2.load_model(modelfile)    
-  best_iteration = xgb_clf_tuned_2.best_iteration
+      X_test = pd.read_csv(modeldir +'/'+studyname+'..Xtest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+      y_test = pd.read_csv(modeldir +'/'+studyname+'..ytest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+      y = pd.concat([y, y_test])
+      y_test = y_test['Significant']
+      print(y_test)
+      print(str(sum(y_test))+'/'+str(len(y_test)))
 
-  #for be in temp_estimators:
-  #    acc = temp_estimators[be]['test_f1']
-  #    if be not in best_estimators:
-  #        best_estimators[be] = temp_estimators[be]
-  #    elif best_estimators[be]['test_f1'] < acc:
-  #        best_estimators[be] = temp_estimators[be]
-  #    importances = temp_estimators[be]['importances']
-  #    if importances is not None:
-  #        pd.DataFrame(data=importances, index=feature_labels).to_csv('data/trained_models/mira_data/'+str(pid)+'.importance.'+be+'.'+str(evaluation.shape[0])+'.txt')
-           
-  #return the best performing model on test data
+      dtestfilename = modeldir +'/'+'dtest.'+str(outer_index)+'.data'
+      dtest = xgb.DMatrix(dtestfilename)
+
+      # load model
+      xgb_clf_tuned_2 = xgb.Booster()
+      xgb_clf_tuned_2.load_model(modelfile)    
+      best_iteration = xgb_clf_tuned_2.best_iteration
+      lst_vars_in_model = xgb_clf_tuned_2.feature_names
+      featurenames = pd.DataFrame({"features":lst_vars_in_model})
+      print(featurenames)
+
+      print(X_test)
+      # load featurenames we need
+      X_test = X_test.reindex(columns = featurenames['features'])
+      print(X_test)
+      X = pd.concat([X, X_test])
+      # load preprocessor 
+      #scaler = joblib.load(scalerfile)
+      #cols = X_test.columns
+      #X_test = pd.DataFrame(scaler.transform(X_test), columns = cols)
+
+
+
+      #y_pred_prob = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration)
+      #print(y_pred_prob)
+      #y_pred = [round(value) for value in y_pred_prob]
   
-  dtest = xgb.DMatrix(X_test) 
-  y_pred_prob = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration)
-  y_pred = [round(value) for value in y_pred_prob]
-  test_pd = pd.DataFrame(y_pred, columns=['pred'], index=y_test.index)
-  y_res = pd.merge(y_test, test_pd, left_index=True, right_index=True)
-  res = pd.merge(y_res, pd.DataFrame(y_pred_prob, columns=['pred_prob'], index=y_test.index), left_index=True, right_index=True)
-  outfile = os.path.basename(targets)
-  res.to_csv(outdir+'/confusion.'+str(pid)+'.'+outfile, index=False, sep='\t')
+      fscore = xgb_clf_tuned_2.get_score( importance_type='total_gain')
+      #print(fscore)
+      importances = pd.DataFrame.from_dict(fscore, orient='index',columns=['fscore'])  
+      importances.insert(0, 'feature', importances.index)
+      print(importances)
+      list_importances.append(importances)
 
 
-  # Data to plot precision - recall curve
-  precision, recall, thresholds = precision_recall_curve(y_test, y_pred_prob, pos_label = 1)
-  #print(precision)
-  #print(recall)
-  pr = pd.DataFrame({0:precision,1:recall,2:np.append(thresholds,None)})
-  outfile = os.path.basename(targets)
-  pr.to_csv(outdir+'/pr.'+str(pid)+'.'+outfile, index=False, sep='\t')
-
-  aucpr = auc(recall, precision)
-  average_precision = average_precision_score(y_test, y_pred_prob)
-  bal_accuracy = balanced_accuracy_score(y_test, y_pred)
-  test_f1_score = f1_score(y_test, y_pred)
-  metric = {}
-  metric['aucpr'] = [aucpr]
-  metric['average_precision'] = [average_precision]
-  metric['bal_accuracy'] = [bal_accuracy]
-  metric['f1_score'] = [test_f1_score]
-  metric['best_iteration'] = best_iteration
-  evaluation = pd.DataFrame.from_dict(metric)
-  #fnames = data1.loc[:,data1.columns != 'sig'].columns[[int(x[1:]) for x in xgb_clf_tuned_2[:-1].get_feature_names_out()]].tolist()
-    #fweights = clf.named_steps[clf_label].coef_.ravel()
-  #frank = rank(abs(clf.named_steps[clf_label].coef_.ravel()))
-  #for i in range(0,len(fnames)):
-  #    feature = fnames[i]
-  #    if feature not in feature_ranks:
-  #        feature_ranks[feature] = fweights[i]*frank[i]/len(frank)
-  #    else:
-  #        feature_ranks[feature] += fweights[i]*frank[i]/len(frank)
-  #plot pr curve
-  #plot_pr_curves([xgb_clf_tuned_2], X_test, y_test, abc_score[test_idx], distance[test_idx], outer_index, 'data/pr_curves_c/xgb/')
+      # SHAP values
+      shap_values = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration, pred_contribs=True)
+      print(shap_values)
+      print(shap_values.shape)
+      list_shap_values.append(shap_values)
 
 
-#    dump_list = xgb_clf_tuned_2.get_booster().get_dump()
-#    num_trees = len(dump_list)
-#    fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
-#    for i in range(num_trees): 
-#      plt.rcParams.update({'font.size':12})
-#      plt.rcParams['figure.figsize'] = 80,50
-#      plot_tree(xgb_clf_tuned_2, num_trees=i, rankdir='LR')
-#      plt.savefig(outdir+'/'+'tree.'+filenamesuffix+'.'+str(pid)+'_'+str(i)+'.pdf')
-#      plt.rcParams.update({'font.size':10})
-#      plt.cla()
-#      if (i > 20): break;
-#    plt.close()
-# 
+  importance_values = pd.DataFrame(columns = ['feature', 'fscore'])
+  for i in range(0, nfold):
+      importance_values = pd.concat([importance_values, list_importances[i]])
+  importance_values.sort_values(by=['fscore'],ascending=False,ignore_index=True).to_csv(outdir+'/importance.'+studyname+'.txt', index=False, sep='\t')
+
+  #combining results from all iterations
+  shap_values = np.array(list_shap_values[0])
+  for i in range(1, nfold):
+      shap_values = np.concatenate((shap_values,np.array(list_shap_values[i])), axis=0)
+  shap_values = shap_values[:,:-1]
+  shap_pandas = pd.DataFrame(shap_values, columns = X.columns, index=X.index)
+  print(shap_values)
+  print(shap_values.shape)
+  print(shap_pandas)
+  shap_pandas.to_csv(outdir+'/shap_values.'+studyname+'.txt', index=False, sep='\t')
 
 
-  pd.set_option('display.max_columns', None) 
-  print(evaluation) 
+  # interpret by contact
 
-  fscore = xgb_clf_tuned_2.get_score( importance_type='total_gain')
-  #print(fscore)
-  importances = pd.DataFrame.from_dict(fscore, orient='index',columns=['fscore'])  
-  importances.insert(0, 'feature', importances.index)
-  importances.sort_values(by=['fscore'],ascending=False,ignore_index=True).to_csv(outdir+'importance.'+str(pid)+'.'+outfile, index=False, sep='\t')
-  #print(importances)
+  hic_median = 0.007
+  X_hicontact = X.loc[X['hic_contact'] >= hic_median].copy()
+  X_lowcontact = X.loc[X['hic_contact'] < hic_median].copy()
+  y_hicontact = y.loc[X_hicontact.index].copy()
+  y_hicontact = y_hicontact['Significant']
+  print(y_hicontact)
+  print(str(sum(y_hicontact))+'/'+str(len(y_hicontact)))
+  y_lowcontact = y.loc[X_lowcontact.index].copy()
+  y_lowcontact = y_lowcontact['Significant']
+  print(y_lowcontact)
+  print(str(sum(y_lowcontact))+'/'+str(len(y_lowcontact)))
+  shap_hicontact = shap_pandas.loc[(X['hic_contact'] >= hic_median)].copy()
+  shap_lowcontact = shap_pandas.loc[(X['hic_contact'] < hic_median)].copy()
+  print(shap_hicontact)
+  print(X_hicontact['hic_contact'])
+  print(shap_lowcontact)
+  print(X_lowcontact['hic_contact'])
+
+  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  shap.summary_plot(shap_pandas.to_numpy(), X, max_display=100)
+  plt.savefig(outdir+'/'+'shap.'+studyname+'.shap.pdf')
+  plt.close()
+
+  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  shap.summary_plot(shap_hicontact.to_numpy(), X_hicontact, max_display=100)
+  plt.savefig(outdir+'/'+'shap_hicontact.'+studyname+'.shap.pdf')
+  plt.close()
+
+  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  shap.summary_plot(shap_lowcontact.to_numpy(), X_lowcontact, max_display=100)
+  plt.savefig(outdir+'/'+'shap_lowcontact.'+studyname+'.shap.pdf')
+  plt.close()
+
+  shap_hicontact_pos = shap_hicontact.loc[(y_hicontact==1)].copy()
+  shap_lowcontact_pos = shap_lowcontact.loc[(y_lowcontact==1)].copy()
+  X_hicontact_pos = X_hicontact.loc[(y_hicontact==1)].copy()
+  X_lowcontact_pos = X_lowcontact.loc[(y_lowcontact==1)].copy()
+  shap_hicontact_pos.to_csv(outdir+'/shap_hicontact_pos.'+studyname+'.txt', index=False, sep='\t')
+  shap_lowcontact_pos.to_csv(outdir+'/shap_lowcontact_pos.'+studyname+'.txt', index=False, sep='\t')
+
+  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  shap.summary_plot(shap_hicontact_pos.to_numpy(), X_hicontact_pos, max_display=100)
+  plt.savefig(outdir+'/'+'shap_hicontact_pos.'+studyname+'.shap.pdf')
+  plt.close()
+
+  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  shap.summary_plot(shap_lowcontact_pos.to_numpy(), X_lowcontact_pos, max_display=100)
+  plt.savefig(outdir+'/'+'shap_lowcontact_pos.'+studyname+'.shap.pdf')
+  plt.close()
 
 
-  #  evaluation.to_csv('data/trained_models/mira_data/'+str(pid)+'.evaluation.txt')
-  #save best estimators 
-#  for est in best_estimators:
-#      joblib.dump(best_estimators[est]['clf'], 'data/trained_models/mira_data/'+str(pid)+'.'+est+'.pkl')
-  print('Total runtime: ' + str(time.time() - tstart))    
+  # interpret by erole
+  e1index = eroles.loc[eroles['erole']==100].index 
+  X_direct = X.loc[e1index.intersection(X.index)].copy()
+  e2plusindex = eroles.loc[eroles['erole']!=100].index 
+  X_indirect = X.loc[e2plusindex.intersection(X.index)].copy()
+  y_direct = y.loc[X_direct.index].copy()
+  y_direct = y_direct['Significant']
+  print(y_direct)
+  print(str(sum(y_direct))+'/'+str(len(y_direct)))
+  y_indirect = y.loc[X_indirect.index].copy()
+  y_indirect = y_indirect['Significant']
+  print(y_indirect)
+  print(str(sum(y_indirect))+'/'+str(len(y_indirect)))
+  shap_direct = shap_pandas.loc[e1index.intersection(shap_pandas.index)].copy()
+  shap_indirect = shap_pandas.loc[e2plusindex.intersection(shap_pandas.index)].copy()
+  print(shap_direct)
+  print(X_direct['hic_contact'])
+  print(shap_indirect)
+  print(X_indirect['hic_contact'])
+
+  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  shap.summary_plot(shap_direct.to_numpy(), X_direct, max_display=100)
+  plt.savefig(outdir+'/'+'shap_direct.'+studyname+'.shap.pdf')
+  plt.close()
+
+  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  shap.summary_plot(shap_indirect.to_numpy(), X_indirect, max_display=100)
+  plt.savefig(outdir+'/'+'shap_indirect.'+studyname+'.shap.pdf')
+  plt.close()
+
+  shap_direct_pos = shap_direct.loc[(y_direct==1)].copy()
+  shap_indirect_pos = shap_indirect.loc[(y_indirect==1)].copy()
+  X_direct_pos = X_direct.loc[(y_direct==1)].copy()
+  X_indirect_pos = X_indirect.loc[(y_indirect==1)].copy()
+  shap_direct_pos.to_csv(outdir+'/shap_direct_pos.'+studyname+'.txt', index=False, sep='\t')
+  shap_indirect_pos.to_csv(outdir+'/shap_indirect_pos.'+studyname+'.txt', index=False, sep='\t')
+
+  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  shap.summary_plot(shap_direct_pos.to_numpy(), X_direct_pos, max_display=100)
+  plt.savefig(outdir+'/'+'shap_direct_pos.'+studyname+'.shap.pdf')
+  plt.close()
+
+  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  shap.summary_plot(shap_indirect_pos.to_numpy(), X_indirect_pos, max_display=100)
+  plt.savefig(outdir+'/'+'shap_indirect_pos.'+studyname+'.shap.pdf')
+  plt.close()
+
+
+
+
+  # interaction
+
+  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  shap.dependence_plot((5,1), shap_interaction_values, X)
+  plt.savefig(outdir+'/'+'dependence.promoter.'+str(pid)+'.'+outfile+'.pdf')
+  plt.close()
+  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  shap.dependence_plot((7,1), shap_interaction_values, X)
+  plt.savefig(outdir+'/'+'dependence.H3K27ac.'+str(pid)+'.'+outfile+'.pdf')
+  plt.close()
+
+print('Total runtime: ' + str(time.time() - tstart))    
 

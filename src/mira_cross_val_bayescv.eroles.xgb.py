@@ -344,7 +344,7 @@ class Objective:
           # use exact for small featuresset.
           "tree_method": "auto",
           # n_estimator
-          "num_boost_round": trial.suggest_int("num_boost_round", 100, 600),
+          "num_boost_round": trial.suggest_int("num_boost_round", 100, 3000),
           # defines booster
           "booster": trial.suggest_categorical("booster", ["gbtree"]),
           #"booster": trial.suggest_categorical("booster", ["dart"]),
@@ -352,20 +352,20 @@ class Objective:
           #"max_depth": trial.suggest_int("min_child_weight", 3, 4),
           "max_depth": 3,
           # minimum child weight, larger the term more conservative the tree.
-          "min_child_weight": trial.suggest_int("min_child_weight", 10, 16),
+          "min_child_weight": trial.suggest_int("min_child_weight", 10, 20),
           # learning rate
           #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
           "eta": 0.01,
           # sampling ratio for training features.
-          "subsample": trial.suggest_float("subsample", 0.5, 0.6),
+          "subsample": trial.suggest_float("subsample", 0.5, 0.8),
           # sampling according to each tree.
-          "colsample_bytree": trial.suggest_float("colsample_bytree", 0.75, 0.85),
+          "colsample_bytree": trial.suggest_float("colsample_bytree", 0.70, 0.90),
           # L2 regularization weight.
           #"lambda": trial.suggest_float("lambda", 1e-9, 0.01, log=True),
           # L1 regularization weight.
           #"alpha": trial.suggest_float("alpha", 1e-9, 0.2, log=True),
           # defines how selective algorithm is.
-          "gamma": trial.suggest_float("gamma", 10, 12),
+          "gamma": trial.suggest_float("gamma", 10, 20),
           #"grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
           "scale_pos_weight": np.sqrt(self.cls_weight),
           "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
@@ -607,7 +607,7 @@ class OuterFolds:
                 trial = study.best_trial
 
                 print("  Value: {}".format(trial.value))
-                print("  best_iteration: {}"+str(trial.user_attrs['best_iteration']))
+                print("  best_iteration: {}".format(trial.user_attrs['best_iteration']))
                 print("  Params: ")
                 for key, value in trial.params.items():
                     print("    {}: {}".format(key, value))
@@ -668,6 +668,7 @@ class OuterFolds:
                 params['bal_accuracy'] = [bal_accuracy]
                 params['f1_score'] = [test_f1_score]
                 params['classifier'] = classifier
+                params['best_iteration'] = best_iteration
                 self.outer_results = pd.concat([self.outer_results,pd.DataFrame.from_dict(params)])
                 #fnames = data1.loc[:,data1.columns != 'sig'].columns[[int(x[1:]) for x in xgb_clf_tuned_2[:-1].get_feature_names_out()]].tolist()
                 #fweights = clf.named_steps[clf_label].coef_.ravel()
