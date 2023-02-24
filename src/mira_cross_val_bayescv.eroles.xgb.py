@@ -1,8 +1,7 @@
 import argparse
 import time, os
 import joblib
-from importlib import reload
-os.environ["OMP_NUM_THREADS"] = "2" # export OMP_NUM_THREADS=2
+os.environ["OMP_NUM_THREADS"] = "4" # export OMP_NUM_THREADS=4
 import numpy as np
 from  scipy.stats import rankdata as rank
 import matplotlib.pyplot as plt
@@ -29,6 +28,7 @@ from optuna import create_study, logging
 from optuna.pruners import MedianPruner
 from optuna.integration import XGBoostPruningCallback
 from collections import Counter
+from BorutaShap import BorutaShap
 
 RANDOM_SEED = 42
 
@@ -344,7 +344,7 @@ class Objective:
           # use exact for small featuresset.
           "tree_method": "auto",
           # n_estimator
-          "num_boost_round": trial.suggest_int("num_boost_round", 100, 3000),
+          "num_boost_round": trial.suggest_int("num_boost_round", 100, 500),
           # defines booster
           "booster": trial.suggest_categorical("booster", ["gbtree"]),
           #"booster": trial.suggest_categorical("booster", ["dart"]),
@@ -415,8 +415,11 @@ class Objective:
         print(X_test)
         print(y_train)
         print(y_test)
+
         dtrain = xgb.DMatrix(X_train, label=y_train)
         dtest = xgb.DMatrix(X_test, label=y_test)
+
+        # xgb train with evals
         evals_result = {}
         pruning_callback = optuna.integration.XGBoostPruningCallback(trial, "validation-map")
         if idx == 0:
@@ -458,7 +461,6 @@ class Objective:
 
     #pruning_callback = optuna.integration.XGBoostPruningCallback(trial, "test-map")
     #cv_results = xgb.cv(param, self.dtrain, folds=self.custom_fold, early_stopping_rounds=100, callbacks=[pruning_callback])
-    
     #trial.set_user_attr("n_estimators", len())
     print(param['scale_pos_weight'])
     print(np.sqrt(self.cls_weight))
@@ -546,16 +548,24 @@ class OuterFolds:
             dtest.save_binary(dtestfilename)
             #self.dtests[outer_index] = dtest
             #self.dtestfilenames[outer_index] = dtestfilename
+            outer_index=outer_index+1
 
+
+    # Set up outer folds for testing 
+    def create_studies(self, study_name_prefix, nfold):
+        for outer_index in range(nfold):
+            #get indices for outersplit
             storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
             for model in models: 
                 print("\nCreating Optuna for %s outer fold %d." % (model, outer_index), flush=True)
                 pruner = optuna.pruners.MedianPruner(n_warmup_steps=5)
                 # xgb study
-                study_name = self.study_name_prefix+model+"."+str(outer_index)
+                study_name = study_name_prefix+'.'+model+"."+str(outer_index)
                 #optuna.delete_study(study_name=study_name, storage=storage) # if there is existing study remove.
                 study = optuna.create_study(study_name=study_name, direction="maximize", storage=storage, pruner=pruner, load_if_exists=True)
-            outer_index += 1
+
+
+
 
 
     def optimize_hyperparams(self, model, outer_index, n_inner_fold=4, scoring='map'):
@@ -566,7 +576,7 @@ class OuterFolds:
             #for outer_index,study_name in folds.items():
             #    print(outer_index)
             #    print(study_name) 
-        study_name = self.study_name_prefix+model+"."+str(outer_index)
+        study_name = self.study_name_prefix+'.'+model+"."+str(outer_index)
         study = optuna.load_study(study_name=study_name, storage=self.storage) 
         print("Loaded study  %s with  %d trials." % (study_name, len(study.trials)))
         X_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
@@ -588,16 +598,109 @@ class OuterFolds:
         for split in inner_splits.split(X_split,y_split,group_split):
             train_idx, test_idx = split
             custom_fold.append((train_idx, test_idx))
-        study.optimize(Objective(X_split, y_split, model, custom_fold, self.study_name_prefix+str(outer_index), scoring, cls_weight), n_trials=2000, timeout=600, n_jobs=1)  # will run 4 process to cover 2000 approx trials 
+        study.optimize(Objective(X_split, y_split, model, custom_fold, study_name, scoring, cls_weight), n_trials=2000, timeout=600, n_jobs=1)  # will run 4 process to cover 2000 approx trials 
+     
+
+    def feature_selection(self, model, outer_index):
+        study_name = self.study_name_prefix+'.'+model+"."+str(outer_index)
+        study = optuna.load_study(study_name=study_name, storage=self.storage) 
+        print("Number of finished trials for  %s: %d." % (study_name, len(study.trials)))
+        print("Best trial:")
+        trial = study.best_trial
+
+        print("  Value: {}".format(trial.value))
+        print("  best_iteration: {}".format(trial.user_attrs['best_iteration']))
+        print("  Params: ")
+        for key, value in trial.params.items():
+            print("    {}: {}".format(key, value))
+        #print("  Number of estimators: {}".format(trial.user_attrs["n_estimators"]))
+        print("  scale_pos_weight: {}".format(trial.user_attrs["scale_pos_weight"]))
+
+        params = trial.params
+        params['scale_pos_weight'] = trial.user_attrs["scale_pos_weight"]
+        params['objective'] = "binary:logistic" 
+        if (classifier == 'rf'):
+            params['num_boost_round'] = 1
+        X_train = pd.read_csv(outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+        y_train = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+        y_train = y_train['Significant']
+        dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
+        dtrain = xgb.DMatrix(dtrainfilename)
+        print("  Params: ")
+        for key, value in params.items():
+            print("    {}: {}".format(key, value))
+        xgb_clf_tuned_2 = xgb.XGBClassifier(
+          colsample_bytree=0.8, 
+          gamma=params['gamma'], 
+          #lambda=params['lambda'], 
+          learning_rate=0.01, 
+          max_delta_step=1, 
+          max_depth=3,
+          min_child_weight=params['min_child_weight'],
+          scale_pos_weight=params['scale_pos_weight'], 
+          n_estimators=params['num_boost_round']
+        )
+        print(xgb_clf_tuned_2)
+        # feature selection after a round of hyperparam optimization
+        Feature_Selector = BorutaShap(model=xgb_clf_tuned_2,
+                              importance_measure='shap',
+                              classification=True, 
+                              percentile=80, pvalue=0.1)
+        Feature_Selector.fit(X=X_train, y=y_train, n_trials=50, sample=True,
+                   train_or_test = 'train', normalize=True, verbose=True)
+        fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(200, 50))
+        Feature_Selector.plot(which_features='all')
+        plt.savefig(outdir+'/'+'boruta.'+self.study_name_prefix+'.'+str(outer_index)+'.pdf')
+        plt.close()
+        Feature_Selector.results_to_csv(filename=outdir+'/'+self.study_name_prefix+'.feature_importance.'+str(outer_index)+'.txt')
+        features_to_remove = pd.DataFrame({"features":Feature_Selector.features_to_remove})
+        print(features_to_remove)
+        features_to_remove.to_csv(outdir+'/'+self.study_name_prefix+'.features_to_remove.'+str(outer_index)+'.txt', index=False, sep='\t')
+
+
+
+
+    def drop_features(self):
+        new_study_name_prefix = self.study_name_prefix+'.2pass'
+        featurenames = np.loadtxt(outdir+'/'+self.study_name_prefix+'.featurelabels.txt', skiprows=1, dtype='str')
+        print(featurenames)
+        features_to_drop = featurenames
+        for outer_index in range(self.nfold):
+            features_to_drop_fold = np.loadtxt(outdir+'/'+self.study_name_prefix+'.features_to_remove.'+str(outer_index)+'.txt', skiprows=1, dtype='str')
+            print(features_to_drop_fold)
+            features_to_drop = np.intersect1d(features_to_drop, features_to_drop_fold)
+        print(features_to_drop)
+        np.savetxt(outdir+'/'+new_study_name_prefix+'.features_dropped.txt', np.transpose([features_to_drop]), fmt="%s") 
+        for outer_index in range(self.nfold):
+            src_path = outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt'
+            X_split = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
+            X_split = X_split.drop(columns = features_to_drop)
+            X_split.to_csv(outdir +'/'+new_study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t')
+            os.symlink(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.ysplit.'+str(outer_index)+'.txt')
+            os.symlink(outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt')
        
+            src_path = outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt'
+            X_test = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
+            X_test = X_test.drop(columns = features_to_drop)
+            X_test.to_csv(outdir +'/'+new_study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
+            os.symlink(outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.ytest.'+str(outer_index)+'.txt')
+            os.symlink(outdir +'/'+self.study_name_prefix+'.grouptest.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.grouptest.'+str(outer_index)+'.txt')
+ 
+            y_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
+            dtrain = xgb.DMatrix(X_split, label=y_split)
+            dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
+            dtrain.save_binary(dtrainfilename)
+            dtest = xgb.DMatrix(X_test) 
+            dtestfilename = outdir +'/'+'dtest.'+str(outer_index)+'.data'
+            dtest.save_binary(dtestfilename)
+ 
     # test and summarize outer fold results based on best hyperparms
     def test_results(self):
-        outer_index = 0
         for classifier in models:
             for outer_index in range(self.nfold):
                 print(classifier)
                 print(outer_index)
-                study_name = self.study_name_prefix+classifier+"."+str(outer_index)
+                study_name = self.study_name_prefix+'.'+classifier+"."+str(outer_index)
                 print(study_name) 
                 study = optuna.load_study(study_name=study_name, storage=self.storage) 
                 print("Number of finished trials for  %s: %d." % (study_name, len(study.trials)))
@@ -638,8 +741,8 @@ class OuterFolds:
                 featurenames.to_csv(outdir+'/'+self.study_name_prefix+'.featurenames'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
                 best_iteration = xgb_clf_tuned_2.best_iteration
                 print("new best_iteration: "+str(best_iteration))
-                xgb_clf_tuned_2.save_model('data/trained_models/mira_data/save'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.json')
-                xgb_clf_tuned_2.dump_model('data/trained_models/mira_data/dump'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.json')
+                xgb_clf_tuned_2.save_model(outdir+'/'+self.study_name_prefix+'.save'+'.'+str(outer_index)+'.json')
+                xgb_clf_tuned_2.dump_model(outdir+'/'+self.study_name_prefix+'.dump'+'.'+str(outer_index)+'.json')
                 
                 X_test = pd.read_csv(outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
                 y_test = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
@@ -684,7 +787,7 @@ class OuterFolds:
         
         pd.set_option('display.max_columns', None) 
         print(self.outer_results) 
-        self.outer_results.to_csv('data/trained_models/mira_data/'+str(pid)+'.outer_results.txt', sep='\t')
+        self.outer_results.to_csv(outdir+'/'+self.study_name_prefix+'.outer_results.txt', sep='\t')
 
 
     # next func
@@ -702,10 +805,14 @@ if __name__ == "__main__":
   parser.add_argument('--chr', default='all', help="chromosome")
   parser.add_argument("--port", required=True, help="postgres port for storage")
   parser.add_argument("--studyname", required=True, help="study name prefix")
-  parser.add_argument("--opt", action='store_true', help="parallel optimize") # if on, add parallel optimizers only
+  parser.add_argument("--init", action='store_true', help="create outer folds") # if on, create outer folds and optuna studies 
+  parser.add_argument("--init2pass", action='store_true', help="create outer folds") # if on, create optuna studies for 2nd pass hyperparam optimization after feature selection 
+  parser.add_argument("--opt", action='store_true', help="parallel optimize") # if on, add parallel optimizers 
+  parser.add_argument("--fs", action='store_true', help="featureselection") # if on, feature selection 
+  parser.add_argument("--dropfeatures", action='store_true', help="drop features") # if on, drop features except selected 
+  parser.add_argument("--test", action='store_true', help="gather test results based on tuned model") # if on, gather test results 
   parser.add_argument("--model", default='all', help="choose one of xgb, rf, lr only when optimizing")
   parser.add_argument("--outerfold", default='all', help="choose one of each outer fold only when optimizing")
-  parser.add_argument("--test", action='store_true', help="gather test results based on tuned model") # if on, gather test results only
 
   args=parser.parse_args()
   pid = os.getpid()
@@ -714,11 +821,15 @@ if __name__ == "__main__":
   chromosome = args.chr
   outdir = args.outdir
   postgres_port = args.port
-  study_name_prefix = args.studyname+'.'
-  optimize_only = args.opt
+  study_name_prefix = args.studyname
+  run_init = args.init
+  run_init2pass = args.init2pass
+  run_optimize = args.opt
+  run_feature_selection = args.fs
+  run_drop_features = args.dropfeatures
   classifier = args.model
   outerfold = args.outerfold
-  test_only = args.test
+  run_test = args.test
 
   filenamesuffix = ''
 
@@ -726,7 +837,8 @@ if __name__ == "__main__":
   #import our data, then format it #
   ##################################
 
-  data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt',sep='\t', header=0)
+  data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.train.txt',sep='\t', header=0)
+  #data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt',sep='\t', header=0)
   data2 = data2.loc[:,~data2.columns.str.match("Unnamed")]
   #data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.eindirect.txt',sep='\t', header=0)
   #data2 = data2.loc[data2['e1']==1,]
@@ -742,8 +854,8 @@ if __name__ == "__main__":
   hicfeatures['hic_contact'] = np.log1p(hicfeatures['hic_contact'])
   TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)').copy()
   TFfeatures = TFfeatures.dropna()
-  #cobindingfeatures = features_gasperini.filter(regex='(_co)').copy()
-  #cobindingfeatures = cobindingfeatures.dropna()
+  cobindingfeatures = features_gasperini.filter(regex=r'_co$').copy()
+  cobindingfeatures = cobindingfeatures.dropna()
   crisprfeatures = features_gasperini[['EffectSize', 'Significant', 'pValue' ]].copy()
   crisprfeatures = crisprfeatures.dropna()
   groupfeatures = features_gasperini[['group']].copy()
@@ -751,11 +863,13 @@ if __name__ == "__main__":
   features = ActivityFeatures.copy()
   features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
   features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
+  features = pd.merge(features, cobindingfeatures, left_index=True, right_index=True)
   features = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
   data = pd.merge(features, groupfeatures, left_index=True, right_index=True)
   ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
   hicfeatures = data.iloc[:, ActivityFeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]]
   TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
+  cobindingfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]+cobindingfeatures.shape[1]]
   #crisprfeatures = data.iloc[:, -3:]
   crisprfeatures = data[['EffectSize', 'Significant', 'pValue' ]]
   groupfeatures = data[['group']]
@@ -770,23 +884,31 @@ if __name__ == "__main__":
   distance = features['distance'].values
 
   features.drop(columns=['ABC.Score'], axis=1, inplace=True)
-  feature_labels = list(features.columns)
+  featurelabels = pd.DataFrame({"features":features.columns})
+  featurelabels.to_csv(outdir+'/'+study_name_prefix+'.featurelabels.txt', index=False, sep='\t')
 
   X = features
   y = target
 
   # create outer fold object
-  nfold = 5
+  nfold = 4
   #outer_split = StratifiedKFold(n_splits=nfold, shuffle=True, random_state=RANDOM_SEED)
   outer_split = StratifiedGroupKFold(n_splits=nfold, shuffle=True, random_state=RANDOM_SEED)
   storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
   outerFolds = OuterFolds(outer_split, nfold, groups, storage, study_name_prefix, '')
-  if (optimize_only == True): 
-      outerFolds.optimize_hyperparams(classifier, outerfold)
-  elif (test_only == True):
-      outerFolds.test_results()
-  else:
+  if (run_init == True):
       outerFolds.create_outer_fold(X, y)
+      outerFolds.create_studies(study_name_prefix, nfold)
+  elif (run_init2pass == True):
+      outerFolds.create_studies(study_name_prefix+'.2pass', nfold)
+  elif (run_optimize == True): 
+      outerFolds.optimize_hyperparams(classifier, outerfold)
+  elif (run_feature_selection == True): 
+      outerFolds.feature_selection(classifier, outerfold)
+  elif (run_drop_features == True):
+      outerFolds.drop_features()
+  elif (run_test == True):
+      outerFolds.test_results()
   storage.remove_session()
 
 

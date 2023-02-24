@@ -464,11 +464,12 @@ if __name__ == "__main__":
   eroles = pd.read_csv('data/Gasperini/Gasperini2019.at_scale.erole.txt', sep="\t", index_col=0)
   print(eroles)
   outer_index = 0
-  modelFilenamesList = glob.glob(modeldir+'/save*.json')
+  modelFilenamesList = glob.glob(modeldir+'/'+studyname+'.save*.json')
 
   list_importances = []
   list_shap_values = []
-  X_test = pd.read_csv(modeldir +'/'+studyname+'..Xtest.0.txt', sep='\t', index_col=0)
+  list_shap_interactions = []
+  X_test = pd.read_csv(modeldir +'/'+studyname+'.Xtest.0.txt', sep='\t', index_col=0)
   print(X_test)
   X = pd.DataFrame(columns = X_test.columns)
   print(X)
@@ -478,8 +479,8 @@ if __name__ == "__main__":
       modelfile = modelFilenamesList[outer_index]
       print(modelfile)
 
-      X_test = pd.read_csv(modeldir +'/'+studyname+'..Xtest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
-      y_test = pd.read_csv(modeldir +'/'+studyname+'..ytest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+      X_test = pd.read_csv(modeldir +'/'+studyname+'.Xtest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+      y_test = pd.read_csv(modeldir +'/'+studyname+'.ytest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
       y = pd.concat([y, y_test])
       y_test = y_test['Significant']
       print(y_test)
@@ -526,13 +527,19 @@ if __name__ == "__main__":
       print(shap_values.shape)
       list_shap_values.append(shap_values)
 
+      # SHAP interactions
+      shap_interactions = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration, pred_interactions=True)
+      print(shap_interactions)
+      print(shap_interactions.shape)
+      list_shap_interactions.append(shap_interactions)
+
 
   importance_values = pd.DataFrame(columns = ['feature', 'fscore'])
   for i in range(0, nfold):
       importance_values = pd.concat([importance_values, list_importances[i]])
   importance_values.sort_values(by=['fscore'],ascending=False,ignore_index=True).to_csv(outdir+'/importance.'+studyname+'.txt', index=False, sep='\t')
 
-  #combining results from all iterations
+  # combining shap values from all folds
   shap_values = np.array(list_shap_values[0])
   for i in range(1, nfold):
       shap_values = np.concatenate((shap_values,np.array(list_shap_values[i])), axis=0)
@@ -544,8 +551,19 @@ if __name__ == "__main__":
   shap_pandas.to_csv(outdir+'/shap_values.'+studyname+'.txt', index=False, sep='\t')
 
 
-  # interpret by contact
+  # plot dependency for top features 
+  shap_order = shap_pandas.mean().sort_values()
+  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  for i in range(0,10):
+    for j in range(1,10):
+      shap.dependence_plot(shap_order.index[i], shap_values=shap_values, features=X, interaction_index=shap_order.index[j])
+      plt.savefig(outdir+'/'+'dependence.'+shap_order.index[i]+'x'+shap_order.index[j]+'.pdf')
+      plt.cla()
+  plt.close()
 
+  
+ 
+  # interpret by contact
   hic_median = 0.007
   X_hicontact = X.loc[X['hic_contact'] >= hic_median].copy()
   X_lowcontact = X.loc[X['hic_contact'] < hic_median].copy()
@@ -648,15 +666,20 @@ if __name__ == "__main__":
 
 
   # interaction
+  for i in range(1, nfold):
+    shap_interactions = list_shap_interactions[i][:,:-1,:-1]
+    print(shap_interactions.shape)
+    m,n,r = shap_interactions.shape
+    out_arr = np.column_stack((np.repeat(np.arange(m),n),shap_interactions.reshape(m*n,-1)))
+    shap_x_pandas = pd.DataFrame(out_arr)
+    print(shap_x_pandas)
+    shap_x_pandas.to_csv(outdir+'/shap_interactions.'+studyname+'.'+str(i)+'.txt', index=False, sep='\t')
 
-  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
-  shap.dependence_plot((5,1), shap_interaction_values, X)
-  plt.savefig(outdir+'/'+'dependence.promoter.'+str(pid)+'.'+outfile+'.pdf')
-  plt.close()
-  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
-  shap.dependence_plot((7,1), shap_interaction_values, X)
-  plt.savefig(outdir+'/'+'dependence.H3K27ac.'+str(pid)+'.'+outfile+'.pdf')
-  plt.close()
+    fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+    shap.summary_plot(shap_interactions, X)
+    plt.savefig(outdir+'/'+'shap_interactions.'+studyname+'.'+str(i)+'.pdf')
+    plt.close()
+
 
 print('Total runtime: ' + str(time.time() - tstart))    
 
