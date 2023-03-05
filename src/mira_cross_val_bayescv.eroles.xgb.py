@@ -1,6 +1,7 @@
 import argparse
 import time, os
 import joblib
+from pathlib import Path
 os.environ["OMP_NUM_THREADS"] = "4" # export OMP_NUM_THREADS=4
 import numpy as np
 from  scipy.stats import rankdata as rank
@@ -349,23 +350,23 @@ class Objective:
           "booster": trial.suggest_categorical("booster", ["gbtree"]),
           #"booster": trial.suggest_categorical("booster", ["dart"]),
           # maximum depth of the tree, signifies complexity of the tree.
-          #"max_depth": trial.suggest_int("min_child_weight", 3, 4),
-          "max_depth": 3,
+          #"max_depth": trial.suggest_int("max_depth", 3, 4),
+          "max_depth": 4,
           # minimum child weight, larger the term more conservative the tree.
-          "min_child_weight": trial.suggest_int("min_child_weight", 10, 20),
+          "min_child_weight": trial.suggest_int("min_child_weight", 10, 25),
           # learning rate
           #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
           "eta": 0.01,
           # sampling ratio for training features.
-          "subsample": trial.suggest_float("subsample", 0.5, 0.8),
+          "subsample": trial.suggest_float("subsample", 0.5, 0.7),
           # sampling according to each tree.
-          "colsample_bytree": trial.suggest_float("colsample_bytree", 0.70, 0.90),
+          "colsample_bytree": trial.suggest_float("colsample_bytree", 0.65, 0.90),
           # L2 regularization weight.
-          #"lambda": trial.suggest_float("lambda", 1e-9, 0.01, log=True),
+          #"lambda": trial.suggest_float("lambda", 1, 3, log=True),
           # L1 regularization weight.
           #"alpha": trial.suggest_float("alpha", 1e-9, 0.2, log=True),
           # defines how selective algorithm is.
-          "gamma": trial.suggest_float("gamma", 10, 20),
+          "gamma": trial.suggest_float("gamma", 5, 25),
           #"grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
           "scale_pos_weight": np.sqrt(self.cls_weight),
           "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
@@ -479,12 +480,11 @@ class Objective:
 
 # class outer folds
 class OuterFolds:
-    def __init__(self, foldsplit, nfold, groups, storage, study_name_prefix, scoring):
+    def __init__(self, foldsplit, nfold, storage, study_name_prefix, scoring):
       # Hold this implementation specific arguments as the fields of the class.
       self.study_name_prefix=study_name_prefix
       self.outer_split = foldsplit
       self.nfold = nfold
-      self.groups = groups
       self.storage = storage
       self.scoring = scoring
       self.outer_results = pd.DataFrame()
@@ -500,11 +500,12 @@ class OuterFolds:
       #self.dtestfilenames = {}
 
     # Set up outer folds for testing 
-    def create_outer_fold(self, X, y):
+    def create_outer_fold(self, X, y, groups):
         #######################
         # nested cv structure #
         #######################
 
+        self.groups = groups
         outer_index = 0
         #for split in self.outer_split.split(X,y):
         for split in self.outer_split.split(X,y,self.groups):
@@ -630,12 +631,15 @@ class OuterFolds:
         for key, value in params.items():
             print("    {}: {}".format(key, value))
         xgb_clf_tuned_2 = xgb.XGBClassifier(
-          colsample_bytree=0.8, 
+          #colsample_bytree=0.8, 
+          colsample_bytree=params['colsample_bytree'], 
+          subsample=params['subsample'], 
           gamma=params['gamma'], 
           #lambda=params['lambda'], 
           learning_rate=0.01, 
           max_delta_step=1, 
-          max_depth=3,
+          #max_depth=params['max_depth'],
+          max_depth=4,
           min_child_weight=params['min_child_weight'],
           scale_pos_weight=params['scale_pos_weight'], 
           n_estimators=params['num_boost_round']
@@ -670,23 +674,28 @@ class OuterFolds:
             print(features_to_drop_fold)
             features_to_drop = np.intersect1d(features_to_drop, features_to_drop_fold)
         print(features_to_drop)
+        features_to_drop = np.append(features_to_drop, ['hic_contact_pl_scaled_adj', 'ABC.Score', 'ABC.Score.Numerator', 'ABC.Score.Denominator', 'TargetGenePromoterActivityQuantile'])
+        print(features_to_drop)
         np.savetxt(outdir+'/'+new_study_name_prefix+'.features_dropped.txt', np.transpose([features_to_drop]), fmt="%s") 
         for outer_index in range(self.nfold):
             src_path = outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt'
-            X_split = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
+            #X_split = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
+            X_split = pd.read_csv(src_path, sep='\t', index_col=0)
             X_split = X_split.drop(columns = features_to_drop)
             X_split.to_csv(outdir +'/'+new_study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t')
             os.symlink(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.ysplit.'+str(outer_index)+'.txt')
             os.symlink(outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt')
        
             src_path = outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt'
-            X_test = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
+            #X_test = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
+            X_test = pd.read_csv(src_path, sep='\t', index_col=0)
             X_test = X_test.drop(columns = features_to_drop)
             X_test.to_csv(outdir +'/'+new_study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
             os.symlink(outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.ytest.'+str(outer_index)+'.txt')
             os.symlink(outdir +'/'+self.study_name_prefix+'.grouptest.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.grouptest.'+str(outer_index)+'.txt')
  
-            y_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
+            #y_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
+            y_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
             dtrain = xgb.DMatrix(X_split, label=y_split)
             dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
             dtrain.save_binary(dtrainfilename)
@@ -729,6 +738,9 @@ class OuterFolds:
                 #params['scale_pos_weight'] = np.sqrt(cls_weight)
                 params['scale_pos_weight'] = trial.user_attrs["scale_pos_weight"]
                 params['objective'] = "binary:logistic" 
+                params['eta'] = 0.01
+                params['max_delta_step'] = 1
+                params['max_depth'] = 4
                 if (classifier == 'rf'):
                     params['num_boost_round'] = 1
                 dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
@@ -743,6 +755,10 @@ class OuterFolds:
                 print("new best_iteration: "+str(best_iteration))
                 xgb_clf_tuned_2.save_model(outdir+'/'+self.study_name_prefix+'.save'+'.'+str(outer_index)+'.json')
                 xgb_clf_tuned_2.dump_model(outdir+'/'+self.study_name_prefix+'.dump'+'.'+str(outer_index)+'.json')
+                config_str = xgb_clf_tuned_2.save_config()
+                with open(outdir+'/'+self.study_name_prefix+'.config'+'.'+str(outer_index)+'.json', "w") as config_file: 
+                    config_file.write(config_str)
+                print(config_str)
                 
                 X_test = pd.read_csv(outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
                 y_test = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
@@ -813,6 +829,10 @@ if __name__ == "__main__":
   parser.add_argument("--test", action='store_true', help="gather test results based on tuned model") # if on, gather test results 
   parser.add_argument("--model", default='all', help="choose one of xgb, rf, lr only when optimizing")
   parser.add_argument("--outerfold", default='all', help="choose one of each outer fold only when optimizing")
+  parser.add_argument("--e1", default=False, action='store_true', help="use only e1 pairs")
+  parser.add_argument("--e1minus", default=False, action='store_true', help="use only e0e1 pairs")
+  parser.add_argument("--e2plus", default=False, action='store_true', help="use only e2plus pairs")
+  parser.add_argument("--e3plus", default=False, action='store_true', help="use only e3plus pairs")
 
   args=parser.parse_args()
   pid = os.getpid()
@@ -832,72 +852,98 @@ if __name__ == "__main__":
   run_test = args.test
 
   filenamesuffix = ''
-
-  #################################
-  #import our data, then format it #
-  ##################################
-
-  data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.train.txt',sep='\t', header=0)
-  #data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt',sep='\t', header=0)
-  data2 = data2.loc[:,~data2.columns.str.match("Unnamed")]
-  #data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.eindirect.txt',sep='\t', header=0)
-  #data2 = data2.loc[data2['e1']==1,]
-  #data2 = data2.loc[(data2['e2']==1) | (data2['e3']==1),]
-  #data2['distance'] = data2.apply(lambda row: np.absolute(row.start_x - row.TargetGeneTSS), axis=1)
-
-  features_gasperini = data2
-  ActivityFeatures = features_gasperini[['normalized_h3K27ac', 'normalized_dhs', 'activity_base_x', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile', 'TargetGeneIsExpressed', 'distance']].copy()
-  ActivityFeatures = ActivityFeatures.dropna()
-  #hicfeatures = features_gasperini[['hic_contact', 'ABC.Score.Numerator', 'ABC.Score']].copy()
-  hicfeatures = features_gasperini[['hic_contact','ABC.Score']].copy()
-  hicfeatures = hicfeatures.dropna()
-  hicfeatures['hic_contact'] = np.log1p(hicfeatures['hic_contact'])
-  TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)').copy()
-  TFfeatures = TFfeatures.dropna()
-  cobindingfeatures = features_gasperini.filter(regex=r'_co$').copy()
-  cobindingfeatures = cobindingfeatures.dropna()
-  crisprfeatures = features_gasperini[['EffectSize', 'Significant', 'pValue' ]].copy()
-  crisprfeatures = crisprfeatures.dropna()
-  groupfeatures = features_gasperini[['group']].copy()
-
-  features = ActivityFeatures.copy()
-  features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
-  features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
-  features = pd.merge(features, cobindingfeatures, left_index=True, right_index=True)
-  features = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
-  data = pd.merge(features, groupfeatures, left_index=True, right_index=True)
-  ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
-  hicfeatures = data.iloc[:, ActivityFeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]]
-  TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
-  cobindingfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]+cobindingfeatures.shape[1]]
-  #crisprfeatures = data.iloc[:, -3:]
-  crisprfeatures = data[['EffectSize', 'Significant', 'pValue' ]]
-  groupfeatures = data[['group']]
-  f1 = set(list(features.columns))
-  #features = data.iloc[:, :data.shape[1]-3]
-  features = data.iloc[:, :data.shape[1]-crisprfeatures.shape[1]-groupfeatures.shape[1]]
-  f2 = set(list(features.columns))
-  target = crisprfeatures['Significant'].astype(int)
-  groups = groupfeatures
-
-  abc_score = features['ABC.Score'].values
-  distance = features['distance'].values
-
-  features.drop(columns=['ABC.Score'], axis=1, inplace=True)
-  featurelabels = pd.DataFrame({"features":features.columns})
-  featurelabels.to_csv(outdir+'/'+study_name_prefix+'.featurelabels.txt', index=False, sep='\t')
-
-  X = features
-  y = target
+  subdir = ""
+  if ((args.e1 + args.e1minus + args.e2plus + args.e3plus)>1):
+      print ("--e1, --e1minus, --e2plus and --e3plus are mutually exclusive. please use only one option")
+      quit()
+  elif args.e1:
+      subdir = "e1"
+  elif args.e1minus:
+      subdir = "e1minus"
+  elif args.e2plus:
+      subdir = "e2plus"
+  elif args.e3plus:
+      subdir = "e3plus"
+  outdir = outdir+"/"+subdir
+  Path(outdir).mkdir(parents=True, exist_ok=True)
 
   # create outer fold object
   nfold = 4
   #outer_split = StratifiedKFold(n_splits=nfold, shuffle=True, random_state=RANDOM_SEED)
   outer_split = StratifiedGroupKFold(n_splits=nfold, shuffle=True, random_state=RANDOM_SEED)
   storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
-  outerFolds = OuterFolds(outer_split, nfold, groups, storage, study_name_prefix, '')
+  outerFolds = OuterFolds(outer_split, nfold, storage, study_name_prefix, '')
   if (run_init == True):
-      outerFolds.create_outer_fold(X, y)
+      #################################
+      #import our data, then format it #
+      ##################################
+
+      data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.train.txt',sep='\t', header=0)
+      #data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt',sep='\t', header=0)
+      data2 = data2.loc[:,~data2.columns.str.match("Unnamed")]
+      #data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.eindirect.txt',sep='\t', header=0)
+      #data2 = data2.loc[(data2['e2']==1) | (data2['e3']==1),]
+      #data2['distance'] = data2.apply(lambda row: np.absolute(row.start_x - row.TargetGeneTSS), axis=1)
+      if (args.e1):
+        data2 = data2.loc[data2['e1']==1,]
+      elif (args.e1minus):
+        data2 = data2.loc[(data2['e0']==1) | (data2['e1']==1),]
+      elif (args.e2plus):
+        data2 = data2.loc[(data2['e0']!=1) & (data2['e1']!=1),]
+      elif (args.e3plus):
+        data2 = data2.loc[(data2['e0']!=1) & (data2['e1']!=1) & (data2['e2']!=1),]
+      print(data2)
+
+
+      features_gasperini = data2
+      ActivityFeatures = features_gasperini[['normalized_h3K27ac', 'normalized_h3K4me3', 'normalized_h3K27me3', 'normalized_dhs', 'activity_base', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile', 'TargetGeneIsExpressed', 'distance', 'H3K27ac.RPKM.quantile.TSS1Kb', 'H3K4me3.RPKM.quantile.TSS1Kb', 'H3K27me3.RPKM.quantile.TSS1Kb']].copy()
+      ActivityFeatures = ActivityFeatures.dropna()
+      ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
+      hicfeatures = features_gasperini[['hic_contact', 'hic_contact_pl_scaled_adj', 'ABC.Score.Numerator', 'ABC.Score']].copy()
+      #hicfeatures = features_gasperini[['hic_contact', 'ABC.Score']].copy()
+      hicfeatures['ABC.Score.Denominator'] = features_gasperini['ABC.Score.Numerator']/features_gasperini['ABC.Score']
+      hicfeatures['ABC.denominator-numerator'] = hicfeatures['ABC.Score.Denominator'] - hicfeatures['ABC.Score.Numerator']
+      hicfeatures = hicfeatures.dropna()
+      #hicfeatures['hic_contact'] = np.log1p(hicfeatures['hic_contact'])
+      TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)').copy()
+      TFfeatures = TFfeatures.dropna()
+      cobindingfeatures = features_gasperini.filter(regex=r'_co$').copy()
+      cobindingfeatures = cobindingfeatures.dropna()
+      crisprfeatures = features_gasperini[['EffectSize', 'Significant', 'pValue' ]].copy()
+      crisprfeatures = crisprfeatures.dropna()
+      groupfeatures = features_gasperini[['group']].copy()
+
+      features = ActivityFeatures.copy()
+      features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
+      features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
+      features = pd.merge(features, cobindingfeatures, left_index=True, right_index=True)
+      features = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
+      data = pd.merge(features, groupfeatures, left_index=True, right_index=True)
+      ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
+      hicfeatures = data.iloc[:, ActivityFeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]]
+      TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
+      cobindingfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]+cobindingfeatures.shape[1]]
+      #crisprfeatures = data.iloc[:, -3:]
+      crisprfeatures = data[['EffectSize', 'Significant', 'pValue' ]]
+      groupfeatures = data[['group']]
+      f1 = set(list(features.columns))
+      #features = data.iloc[:, :data.shape[1]-3]
+      features = data.iloc[:, :data.shape[1]-crisprfeatures.shape[1]-groupfeatures.shape[1]]
+      f2 = set(list(features.columns))
+      target = crisprfeatures['Significant'].astype(int)
+      groups = groupfeatures
+
+      abc_score = features['ABC.Score'].values
+      distance = features['distance'].values
+
+      #features.drop(columns=['ABC.Score'], axis=1, inplace=True)
+      featurelabels = pd.DataFrame({"features":features.columns})
+      featurelabels.to_csv(outdir+'/'+study_name_prefix+'.featurelabels.txt', index=False, sep='\t')
+
+      X = features
+      y = target
+
+      outerFolds.create_outer_fold(X, y, groups)
       outerFolds.create_studies(study_name_prefix, nfold)
   elif (run_init2pass == True):
       outerFolds.create_studies(study_name_prefix+'.2pass', nfold)
