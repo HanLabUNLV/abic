@@ -333,9 +333,6 @@ class Objective:
   def __call__(self, trial):
     # Calculate an objective value by using the extra arguments.
 
-    #if (self.dtrain == None): 
-    #    self.dtrain = xgb.DMatrix(self.X, label=self.y)
-
     param = {}
     if self.classifier == "xgb":
       param = { 
@@ -358,9 +355,9 @@ class Objective:
           #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
           "eta": 0.01,
           # sampling ratio for training features.
-          "subsample": trial.suggest_float("subsample", 0.5, 0.7),
+          "subsample": trial.suggest_float("subsample", 0.5, 0.95),
           # sampling according to each tree.
-          "colsample_bytree": trial.suggest_float("colsample_bytree", 0.65, 0.90),
+          "colsample_bytree": trial.suggest_float("colsample_bytree", 0.65, 0.95),
           # L2 regularization weight.
           #"lambda": trial.suggest_float("lambda", 1, 3, log=True),
           # L1 regularization weight.
@@ -532,7 +529,7 @@ class OuterFolds:
             dtrain.save_binary(dtrainfilename)
             #self.dtrains[outer_index] = dtrain
             #self.dtrainfilenames[outer_index] = dtrainfilename
-            joblib.dump(scaler, outdir +'/'+'scaler.'+str(outer_index)+'.gz')
+            joblib.dump(scaler, outdir +'/'+self.study_name_prefix+'.scaler.'+str(outer_index)+'.gz')
 
             X_test = X.iloc[test_idx,:].copy()
             y_test = y.iloc[test_idx].copy()
@@ -702,6 +699,8 @@ class OuterFolds:
             dtest = xgb.DMatrix(X_test) 
             dtestfilename = outdir +'/'+'dtest.'+str(outer_index)+'.data'
             dtest.save_binary(dtestfilename)
+
+
  
     # test and summarize outer fold results based on best hyperparms
     def test_results(self):
@@ -750,7 +749,7 @@ class OuterFolds:
                 lst_vars_in_model = xgb_clf_tuned_2.feature_names
                 print(lst_vars_in_model)
                 featurenames = pd.DataFrame({"features":lst_vars_in_model})
-                featurenames.to_csv(outdir+'/'+self.study_name_prefix+'.featurenames'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
+                featurenames.to_csv(outdir+'/'+self.study_name_prefix+'.featurenames'+'.'+str(outer_index)+'.txt', index=False, sep='\t')
                 best_iteration = xgb_clf_tuned_2.best_iteration
                 print("new best_iteration: "+str(best_iteration))
                 xgb_clf_tuned_2.save_model(outdir+'/'+self.study_name_prefix+'.save'+'.'+str(outer_index)+'.json')
@@ -769,15 +768,17 @@ class OuterFolds:
                 y_pred_prob = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration)
                 print(y_pred_prob)
                 y_pred = [round(value) for value in y_pred_prob]
-                test_pd = pd.DataFrame(y_pred, columns=['pred'], index=y_test.index)
-                y_res = pd.merge(test_pd, y_test, left_index=True, right_index=True)
-                #res = pd.merge(y_res, pd.DataFrame(X_test, columns=X_test_columns, index=X_test_index), left_index=True, right_index=True)
-                res = pd.merge(y_res, X_test, left_index=True, right_index=True)
-                res.to_csv(outdir+'/'+self.study_name_prefix+'.confusion.'+filenamesuffix+'.'+str(pid)+'.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
+                test_pd = pd.DataFrame({'y_pred':y_pred, 'y_prob':y_pred_prob}, index=y_test.index)
+                y_res = pd.merge(y_test, test_pd, left_index=True, right_index=True)
+                #res = pd.merge(y_res, X_test, left_index=True, right_index=True)
+                y_res.to_csv(outdir+'/'+self.study_name_prefix+'.confusion.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
                 # Data to plot precision - recall curve
                 precision, recall, thresholds = precision_recall_curve(y_test, y_pred_prob, pos_label = 1)
                 print(precision)
                 print(recall)
+                pr = pd.DataFrame({'precision':precision,'recall':recall,'thresholds':np.append(thresholds,None)})
+                pr.to_csv(outdir+'/'+self.study_name_prefix+'.pr_curve.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
+ 
                 aucpr = auc(recall, precision)
                 average_precision = average_precision_score(y_test, y_pred_prob)
                 bal_accuracy = balanced_accuracy_score(y_test, y_pred)
