@@ -1,7 +1,8 @@
 import argparse
-import numpy as np
 import time, os
 import joblib
+os.environ["OMP_NUM_THREADS"] = "8" # export OMP_NUM_THREADS=8
+import numpy as np
 from  scipy.stats import rankdata as rank
 import matplotlib.pyplot as plt
 from statistics import mean, stdev
@@ -29,6 +30,9 @@ from optuna.integration import XGBoostPruningCallback
 from collections import Counter
 import glob
 import shap
+from BorutaShap import BorutaShap
+import json
+
 
 RANDOM_SEED = 42
 
@@ -461,18 +465,21 @@ if __name__ == "__main__":
   #import our data, then format it #
   ##################################
 
-  eroles = pd.read_csv('data/Gasperini/Gasperini2019.at_scale.erole.txt', sep="\t", index_col=0)
-  print(eroles)
+#  eroles = pd.read_csv('data/Gasperini/Gasperini2019.at_scale.erole.txt', sep="\t", index_col=0)
+#  print(eroles)
   outer_index = 0
   modelFilenamesList = glob.glob(modeldir+'/'+studyname+'.save*.json')
+  configFilenamesList = glob.glob(modeldir+'/'+studyname+'.config*.json')
 
   list_importances = []
   list_shap_values = []
   list_shap_interactions = []
   X_test = pd.read_csv(modeldir +'/'+studyname+'.Xtest.0.txt', sep='\t', index_col=0)
+  X_test = X_test.drop(columns = ['ABC.id'])
   print(X_test)
   X = pd.DataFrame(columns = X_test.columns)
   print(X)
+  ABCid = pd.DataFrame(columns = ['ABC.id'])
   y = pd.DataFrame(columns = ['Significant'])
 
   for outer_index in range(nfold):
@@ -480,7 +487,9 @@ if __name__ == "__main__":
       print(modelfile)
 
       X_test = pd.read_csv(modeldir +'/'+studyname+'.Xtest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+      X_test = X_test.drop(columns = ['ABC.id'])
       y_test = pd.read_csv(modeldir +'/'+studyname+'.ytest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+      ABCid_test = pd.read_csv(modeldir +'/'+studyname+'.ABCidtest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
       y = pd.concat([y, y_test])
       y_test = y_test['Significant']
       print(y_test)
@@ -502,6 +511,7 @@ if __name__ == "__main__":
       X_test = X_test.reindex(columns = featurenames['features'])
       print(X_test)
       X = pd.concat([X, X_test])
+      ABCid = pd.concat([ABCid, ABCid_test])
       # load preprocessor 
       #scaler = joblib.load(scalerfile)
       #cols = X_test.columns
@@ -520,6 +530,55 @@ if __name__ == "__main__":
       print(importances)
       list_importances.append(importances)
 
+      # this retrieves all booster and non-booster parameters
+      with open(configFilenamesList[outer_index], 'r') as config_file:
+          config = json.load(config_file) # your xgb booster object
+      stack = [config]
+      params_dict = {}
+      while stack:
+          obj = stack.pop()
+          for k, v in obj.items():
+              if k.endswith('_param'):
+                  for p_k, p_v in v.items():
+                      params_dict[p_k] = p_v
+              elif isinstance(v, dict):
+                  stack.append(v)
+      print(params_dict)
+      # retrieve all parameter values from xgb.train in param search dict
+
+      xgb_clf_tuned_scikit = xgb.XGBClassifier(
+        #colsample_bytree=0.8, 
+        colsample_bytree=float(params_dict['colsample_bytree']),
+        subsample=float(params_dict['subsample']),
+        gamma=float(params_dict['gamma']),
+        #lambda=params_dict['lambda'], 
+        learning_rate=float(0.01),
+        max_delta_step=1,
+        #max_depth=params_dict['max_depth'],
+        max_depth=4,
+        min_child_weight=int(params_dict['min_child_weight']),
+        scale_pos_weight=float(params_dict['scale_pos_weight']), 
+        n_estimators=int(params_dict['num_trees']),
+        random_state = RANDOM_SEED
+      )   
+      print(xgb_clf_tuned_scikit)
+
+      # boruta shap
+      Feature_Selector = BorutaShap(model=xgb_clf_tuned_scikit,
+                            importance_measure='shap',
+                            classification=True, 
+                            percentile=80, pvalue=0.1)
+      Feature_Selector.fit(X=X_test, y=y_test, n_trials=100, sample=True,
+                 train_or_test = 'train', normalize=True, verbose=True)
+      fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(400, 50))
+      Feature_Selector.plot(which_features='all')
+      plt.savefig(outdir+'/'+'boruta.'+str(outer_index)+'.pdf')
+      plt.close()
+      Feature_Selector.results_to_csv(filename=outdir+'/'+'feature_importance.'+str(outer_index)+'.txt')
+      features_to_remove = pd.DataFrame({"features":Feature_Selector.features_to_remove})
+      print(features_to_remove)
+      features_to_remove.to_csv(outdir+'/'+'features_to_remove.'+str(outer_index)+'.txt', index=False, sep='\t')
+
 
       # SHAP values
       shap_values = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration, pred_contribs=True)
@@ -534,8 +593,13 @@ if __name__ == "__main__":
       list_shap_interactions.append(shap_interactions)
 
 
+  X.insert(0, "ABC.id", ABCid['ABC.id'])
+  X.to_csv(outdir+'/X.'+studyname+'.txt', sep='\t') 
+  X = X.drop(columns = ['ABC.id'])
+  ABCid.to_csv(outdir+'/ABCid.'+studyname+'.txt', sep='\t') 
+
   importance_values = pd.DataFrame(columns = ['feature', 'fscore'])
-  for i in range(0, nfold):
+  for i in range(nfold):
       importance_values = pd.concat([importance_values, list_importances[i]])
   importance_values.sort_values(by=['fscore'],ascending=False,ignore_index=True).to_csv(outdir+'/importance.'+studyname+'.txt', index=False, sep='\t')
 
@@ -548,25 +612,34 @@ if __name__ == "__main__":
   print(shap_values)
   print(shap_values.shape)
   print(shap_pandas)
-  shap_pandas.to_csv(outdir+'/shap_values.'+studyname+'.txt', index=False, sep='\t')
+  shap_pandas.insert(0, "ABC.id", ABCid['ABC.id'])
+  shap_pandas.to_csv(outdir+'/shap_values.'+studyname+'.txt', sep='\t')
+  shap_pandas = shap_pandas.drop(columns = ['ABC.id'])
+
+  # summary plot
+  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  shap.summary_plot(shap_pandas.to_numpy(), X, max_display=100)
+  plt.savefig(outdir+'/'+'shap.'+studyname+'.shap.pdf')
+  fig.clf()
+  plt.close(fig)
 
 
   # plot dependency for top features 
-  shap_order = shap_pandas.mean().sort_values()
-  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
-  for i in range(0,10):
-    for j in range(1,10):
+  shap_order = shap_pandas.abs().mean().sort_values(ascending=[False])
+  for i in range(0,20):
+    for j in range(0,20):
+      fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
       shap.dependence_plot(shap_order.index[i], shap_values=shap_values, features=X, interaction_index=shap_order.index[j])
       plt.savefig(outdir+'/'+'dependence.'+shap_order.index[i]+'x'+shap_order.index[j]+'.pdf')
       plt.cla()
-  plt.close()
+      fig.clf()
+      plt.close(fig)
 
-  
  
   # interpret by contact
   hic_median = 0.007
   X_hicontact = X.loc[X['hic_contact'] >= hic_median].copy()
-  X_lowcontact = X.loc[X['hic_contact'] < hic_median].copy()
+  X_lowcontact = X.loc[X['hic_contact'] < hic_median*0.1].copy()
   y_hicontact = y.loc[X_hicontact.index].copy()
   y_hicontact = y_hicontact['Significant']
   print(y_hicontact)
@@ -576,26 +649,23 @@ if __name__ == "__main__":
   print(y_lowcontact)
   print(str(sum(y_lowcontact))+'/'+str(len(y_lowcontact)))
   shap_hicontact = shap_pandas.loc[(X['hic_contact'] >= hic_median)].copy()
-  shap_lowcontact = shap_pandas.loc[(X['hic_contact'] < hic_median)].copy()
+  shap_lowcontact = shap_pandas.loc[(X['hic_contact'] < hic_median*0.1)].copy()
   print(shap_hicontact)
   print(X_hicontact['hic_contact'])
   print(shap_lowcontact)
   print(X_lowcontact['hic_contact'])
 
   fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
-  shap.summary_plot(shap_pandas.to_numpy(), X, max_display=100)
-  plt.savefig(outdir+'/'+'shap.'+studyname+'.shap.pdf')
-  plt.close()
-
-  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
   shap.summary_plot(shap_hicontact.to_numpy(), X_hicontact, max_display=100)
   plt.savefig(outdir+'/'+'shap_hicontact.'+studyname+'.shap.pdf')
-  plt.close()
+  fig.clf()
+  plt.close(fig)
 
   fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
   shap.summary_plot(shap_lowcontact.to_numpy(), X_lowcontact, max_display=100)
   plt.savefig(outdir+'/'+'shap_lowcontact.'+studyname+'.shap.pdf')
-  plt.close()
+  fig.clf()
+  plt.close(fig)
 
   shap_hicontact_pos = shap_hicontact.loc[(y_hicontact==1)].copy()
   shap_lowcontact_pos = shap_lowcontact.loc[(y_lowcontact==1)].copy()
@@ -607,66 +677,68 @@ if __name__ == "__main__":
   fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
   shap.summary_plot(shap_hicontact_pos.to_numpy(), X_hicontact_pos, max_display=100)
   plt.savefig(outdir+'/'+'shap_hicontact_pos.'+studyname+'.shap.pdf')
-  plt.close()
+  fig.clf()
+  plt.close(fig)
 
   fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
   shap.summary_plot(shap_lowcontact_pos.to_numpy(), X_lowcontact_pos, max_display=100)
   plt.savefig(outdir+'/'+'shap_lowcontact_pos.'+studyname+'.shap.pdf')
-  plt.close()
+  fig.clf()
+  plt.close(fig)
 
-
-  # interpret by erole
-  e1index = eroles.loc[eroles['erole']==100].index 
-  X_direct = X.loc[e1index.intersection(X.index)].copy()
-  e2plusindex = eroles.loc[eroles['erole']!=100].index 
-  X_indirect = X.loc[e2plusindex.intersection(X.index)].copy()
-  y_direct = y.loc[X_direct.index].copy()
-  y_direct = y_direct['Significant']
-  print(y_direct)
-  print(str(sum(y_direct))+'/'+str(len(y_direct)))
-  y_indirect = y.loc[X_indirect.index].copy()
-  y_indirect = y_indirect['Significant']
-  print(y_indirect)
-  print(str(sum(y_indirect))+'/'+str(len(y_indirect)))
-  shap_direct = shap_pandas.loc[e1index.intersection(shap_pandas.index)].copy()
-  shap_indirect = shap_pandas.loc[e2plusindex.intersection(shap_pandas.index)].copy()
-  print(shap_direct)
-  print(X_direct['hic_contact'])
-  print(shap_indirect)
-  print(X_indirect['hic_contact'])
-
-  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
-  shap.summary_plot(shap_direct.to_numpy(), X_direct, max_display=100)
-  plt.savefig(outdir+'/'+'shap_direct.'+studyname+'.shap.pdf')
-  plt.close()
-
-  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
-  shap.summary_plot(shap_indirect.to_numpy(), X_indirect, max_display=100)
-  plt.savefig(outdir+'/'+'shap_indirect.'+studyname+'.shap.pdf')
-  plt.close()
-
-  shap_direct_pos = shap_direct.loc[(y_direct==1)].copy()
-  shap_indirect_pos = shap_indirect.loc[(y_indirect==1)].copy()
-  X_direct_pos = X_direct.loc[(y_direct==1)].copy()
-  X_indirect_pos = X_indirect.loc[(y_indirect==1)].copy()
-  shap_direct_pos.to_csv(outdir+'/shap_direct_pos.'+studyname+'.txt', index=False, sep='\t')
-  shap_indirect_pos.to_csv(outdir+'/shap_indirect_pos.'+studyname+'.txt', index=False, sep='\t')
-
-  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
-  shap.summary_plot(shap_direct_pos.to_numpy(), X_direct_pos, max_display=100)
-  plt.savefig(outdir+'/'+'shap_direct_pos.'+studyname+'.shap.pdf')
-  plt.close()
-
-  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
-  shap.summary_plot(shap_indirect_pos.to_numpy(), X_indirect_pos, max_display=100)
-  plt.savefig(outdir+'/'+'shap_indirect_pos.'+studyname+'.shap.pdf')
-  plt.close()
-
-
-
-
+#
+#  # interpret by erole
+#  e1index = eroles.loc[eroles['erole']==100].index 
+#  X_direct = X.loc[e1index.intersection(X.index)].copy()
+#  e2plusindex = eroles.loc[eroles['erole']!=100].index 
+#  X_indirect = X.loc[e2plusindex.intersection(X.index)].copy()
+#  y_direct = y.loc[X_direct.index].copy()
+#  y_direct = y_direct['Significant']
+#  print(y_direct)
+#  print(str(sum(y_direct))+'/'+str(len(y_direct)))
+#  y_indirect = y.loc[X_indirect.index].copy()
+#  y_indirect = y_indirect['Significant']
+#  print(y_indirect)
+#  print(str(sum(y_indirect))+'/'+str(len(y_indirect)))
+#  shap_direct = shap_pandas.loc[e1index.intersection(shap_pandas.index)].copy()
+#  shap_indirect = shap_pandas.loc[e2plusindex.intersection(shap_pandas.index)].copy()
+#  print(shap_direct)
+#  print(X_direct['hic_contact'])
+#  print(shap_indirect)
+#  print(X_indirect['hic_contact'])
+#
+#  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+#  shap.summary_plot(shap_direct.to_numpy(), X_direct, max_display=100)
+#  plt.savefig(outdir+'/'+'shap_direct.'+studyname+'.shap.pdf')
+#  plt.close()
+#
+#  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+#  shap.summary_plot(shap_indirect.to_numpy(), X_indirect, max_display=100)
+#  plt.savefig(outdir+'/'+'shap_indirect.'+studyname+'.shap.pdf')
+#  plt.close()
+#
+#  shap_direct_pos = shap_direct.loc[(y_direct==1)].copy()
+#  shap_indirect_pos = shap_indirect.loc[(y_indirect==1)].copy()
+#  X_direct_pos = X_direct.loc[(y_direct==1)].copy()
+#  X_indirect_pos = X_indirect.loc[(y_indirect==1)].copy()
+#  shap_direct_pos.to_csv(outdir+'/shap_direct_pos.'+studyname+'.txt', index=False, sep='\t')
+#  shap_indirect_pos.to_csv(outdir+'/shap_indirect_pos.'+studyname+'.txt', index=False, sep='\t')
+#
+#  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+#  shap.summary_plot(shap_direct_pos.to_numpy(), X_direct_pos, max_display=100)
+#  plt.savefig(outdir+'/'+'shap_direct_pos.'+studyname+'.shap.pdf')
+#  plt.close()
+#
+#  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+#  shap.summary_plot(shap_indirect_pos.to_numpy(), X_indirect_pos, max_display=100)
+#  plt.savefig(outdir+'/'+'shap_indirect_pos.'+studyname+'.shap.pdf')
+#  plt.close()
+#
+#
+#
+#
   # interaction
-  for i in range(1, nfold):
+  for i in range(nfold):
     shap_interactions = list_shap_interactions[i][:,:-1,:-1]
     print(shap_interactions.shape)
     m,n,r = shap_interactions.shape
@@ -675,10 +747,12 @@ if __name__ == "__main__":
     print(shap_x_pandas)
     shap_x_pandas.to_csv(outdir+'/shap_interactions.'+studyname+'.'+str(i)+'.txt', index=False, sep='\t')
 
+    X_test = pd.read_csv(modeldir +'/'+studyname+'.Xtest.'+str(i)+'.txt', sep='\t', index_col=0)
     fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
-    shap.summary_plot(shap_interactions, X)
+    shap.summary_plot(shap_interactions, X.loc[X_test.index])
     plt.savefig(outdir+'/'+'shap_interactions.'+studyname+'.'+str(i)+'.pdf')
-    plt.close()
+    fig.clf()
+    plt.close(fig)
 
 
 print('Total runtime: ' + str(time.time() - tstart))    

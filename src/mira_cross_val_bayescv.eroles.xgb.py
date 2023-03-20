@@ -519,6 +519,9 @@ class OuterFolds:
             #self.X_splits[outer_index] = X_split
             #self.y_splits[outer_index] = y_split
             #self.group_splits[outer_index] = group_train
+            ABCid_split = X_split['ABC.id']
+            ABCid_split.to_csv(outdir +'/'+self.study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt', sep='\t')
+            X_split = X_split.drop(columns = ['ABC.id'])
 
             cols = X_split.columns
             scaler = preprocessing.MinMaxScaler()
@@ -540,6 +543,10 @@ class OuterFolds:
             #self.X_tests[outer_index] = X_test
             #self.y_tests[outer_index] = y_test
             #self.group_tests[outer_index] = group_test
+            ABCid_test = X_test['ABC.id']
+            ABCid_test.to_csv(outdir +'/'+self.study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt', sep='\t')
+            X_test = X_test.drop(columns = ['ABC.id'])
+
             X_test = pd.DataFrame(scaler.transform(X_test), columns = cols)
             dtest = xgb.DMatrix(X_test) 
             dtestfilename = outdir +'/'+'dtest.'+str(outer_index)+'.data'
@@ -680,16 +687,20 @@ class OuterFolds:
             X_split = pd.read_csv(src_path, sep='\t', index_col=0)
             X_split = X_split.drop(columns = features_to_drop)
             X_split.to_csv(outdir +'/'+new_study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t')
+            X_split = X_split.drop(columns = ['ABC.id'])
             os.symlink(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.ysplit.'+str(outer_index)+'.txt')
             os.symlink(outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt')
+            os.symlink(outdir +'/'+self.study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt')
        
             src_path = outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt'
             #X_test = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
             X_test = pd.read_csv(src_path, sep='\t', index_col=0)
             X_test = X_test.drop(columns = features_to_drop)
             X_test.to_csv(outdir +'/'+new_study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
+            X_test = X_test.drop(columns = ['ABC.id'])
             os.symlink(outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.ytest.'+str(outer_index)+'.txt')
             os.symlink(outdir +'/'+self.study_name_prefix+'.grouptest.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.grouptest.'+str(outer_index)+'.txt')
+            os.symlink(outdir +'/'+self.study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt')
  
             #y_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
             y_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
@@ -897,7 +908,7 @@ if __name__ == "__main__":
 
 
       features_gasperini = data2
-      ActivityFeatures = features_gasperini[['normalized_h3K27ac', 'normalized_h3K4me3', 'normalized_h3K27me3', 'normalized_dhs', 'activity_base', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile', 'TargetGeneIsExpressed', 'distance', 'H3K27ac.RPKM.quantile.TSS1Kb', 'H3K4me3.RPKM.quantile.TSS1Kb', 'H3K27me3.RPKM.quantile.TSS1Kb']].copy()
+      ActivityFeatures = features_gasperini[['ABC.id', 'normalized_h3K27ac', 'normalized_h3K4me3', 'normalized_h3K27me3', 'normalized_dhs', 'activity_base', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile', 'TargetGeneIsExpressed', 'distance', 'H3K27ac.RPKM.quantile.TSS1Kb', 'H3K4me3.RPKM.quantile.TSS1Kb', 'H3K27me3.RPKM.quantile.TSS1Kb']].copy()
       ActivityFeatures = ActivityFeatures.dropna()
       ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
       hicfeatures = features_gasperini[['hic_contact', 'hic_contact_pl_scaled_adj', 'ABC.Score.Numerator', 'ABC.Score']].copy()

@@ -27,6 +27,7 @@ from optuna import create_study, logging
 from optuna.pruners import MedianPruner
 from optuna.integration import XGBoostPruningCallback
 from collections import Counter
+from pathlib import Path
 
 RANDOM_SEED = 42
 
@@ -443,7 +444,6 @@ if __name__ == "__main__":
   parser.add_argument('--modelfile', required=True, help="model saved after training in json file")
   parser.add_argument('--features', required=True, help="feature matrix ")
   parser.add_argument('--targets', help="target truth to compare for evaluation")
-  parser.add_argument('--featurenames', required=True, help="feature names saved after training in csv file")
 
   args=parser.parse_args()
   pid = os.getpid()
@@ -455,7 +455,7 @@ if __name__ == "__main__":
   modelfile = args.modelfile
   features = args.features
   targets = args.targets
-  featurenames = args.featurenames
+  prefix = Path(modelfile).stem
 
   filenamesuffix = ''
 
@@ -465,26 +465,40 @@ if __name__ == "__main__":
 
   X_test = pd.read_csv(features, sep='\t', index_col=0)
   X_test = X_test.loc[:,~X_test.columns.str.match("Unnamed")]
+  # same feature engineering as training
+  X_test['TargetGeneExpression'] = np.log1p(X_test['TargetGeneExpression'])
+  X_test['ABC.Score.Denominator'] = X_test['ABC.Score.Numerator']/X_test['ABC.Score']
+  X_test['ABC.denominator-numerator'] = X_test['ABC.Score.Denominator'] - X_test['ABC.Score.Numerator']
+
+
   y_test = pd.read_csv(targets, sep='\t', index_col=None)
   y_test = y_test.loc[:,~y_test.columns.str.match("Unnamed")]
   y_test = y_test['Significant'].astype(int)
   print(y_test)
   print(str(sum(y_test))+'/'+str(len(y_test)))
 
-  # load featurenames we need
-  featurenames_in_training = pd.read_csv(featurenames,sep='\t')
-  X_test = X_test.reindex(columns = featurenames_in_training['features'])
-
   # load preprocessor 
-  scaler = joblib.load(scalerfile)
-  cols = X_test.columns
-  X_test = pd.DataFrame(scaler.transform(X_test), columns = cols)
+  #scaler = joblib.load(scalerfile)
+  #features = scaler.get_feature_names_out()
+  #print(features)
+  #X_test = X_test.reindex(columns = scaler.get_feature_names_out())
+  #X_test = pd.DataFrame(scaler.transform(X_test), columns = X_test.columns)
+  #print(X_test.columns)
+
+
 
   # load model
   xgb_clf_tuned_2 = xgb.Booster()
   xgb_clf_tuned_2.load_model(modelfile)    
+  print(xgb_clf_tuned_2)
   best_iteration = xgb_clf_tuned_2.best_iteration
-
+  print(best_iteration)
+  lst_vars_in_model = xgb_clf_tuned_2.feature_names
+  print(lst_vars_in_model)
+  featurenames = pd.DataFrame({"features":lst_vars_in_model})
+  print(featurenames)
+  X_test = X_test.reindex(columns = featurenames['features'])
+     
   #for be in temp_estimators:
   #    acc = temp_estimators[be]['test_f1']
   #    if be not in best_estimators:
@@ -499,21 +513,20 @@ if __name__ == "__main__":
   
   dtest = xgb.DMatrix(X_test) 
   y_pred_prob = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration)
+  print(y_pred_prob)
   y_pred = [round(value) for value in y_pred_prob]
-  test_pd = pd.DataFrame(y_pred, columns=['pred'], index=y_test.index)
+  test_pd = pd.DataFrame({'y_pred':y_pred, 'y_prob':y_pred_prob}, index=y_test.index)
   y_res = pd.merge(y_test, test_pd, left_index=True, right_index=True)
-  res = pd.merge(y_res, pd.DataFrame(y_pred_prob, columns=['pred_prob'], index=y_test.index), left_index=True, right_index=True)
-  outfile = os.path.basename(targets)
-  res.to_csv(outdir+'/confusion.'+str(pid)+'.'+outfile, index=False, sep='\t')
+  y_res.to_csv(outdir+'/confusion.'+prefix+'.txt', index=False, sep='\t')
 
 
   # Data to plot precision - recall curve
   precision, recall, thresholds = precision_recall_curve(y_test, y_pred_prob, pos_label = 1)
   #print(precision)
   #print(recall)
-  pr = pd.DataFrame({0:precision,1:recall,2:np.append(thresholds,None)})
+  pr = pd.DataFrame({'precision':precision,'recall':recall,'threshold':np.append(thresholds,None)})
   outfile = os.path.basename(targets)
-  pr.to_csv(outdir+'/pr.'+str(pid)+'.'+outfile, index=False, sep='\t')
+  pr.to_csv(outdir+'/pr_curve.'+prefix+'.txt', index=False, sep='\t')
 
   aucpr = auc(recall, precision)
   average_precision = average_precision_score(y_test, y_pred_prob)
@@ -526,6 +539,8 @@ if __name__ == "__main__":
   metric['f1_score'] = [test_f1_score]
   metric['best_iteration'] = best_iteration
   evaluation = pd.DataFrame.from_dict(metric)
+  evaluation.to_csv(outdir+'/evaluation.'+prefix+'.txt', sep='\t')
+
   #fnames = data1.loc[:,data1.columns != 'sig'].columns[[int(x[1:]) for x in xgb_clf_tuned_2[:-1].get_feature_names_out()]].tolist()
     #fweights = clf.named_steps[clf_label].coef_.ravel()
   #frank = rank(abs(clf.named_steps[clf_label].coef_.ravel()))
@@ -561,7 +576,7 @@ if __name__ == "__main__":
   #print(fscore)
   importances = pd.DataFrame.from_dict(fscore, orient='index',columns=['fscore'])  
   importances.insert(0, 'feature', importances.index)
-  importances.sort_values(by=['fscore'],ascending=False,ignore_index=True).to_csv(outdir+'importance.'+str(pid)+'.'+outfile, index=False, sep='\t')
+  importances.sort_values(by=['fscore'],ascending=False,ignore_index=True).to_csv(outdir+'/total_gain.importance.'+prefix+'.txt', index=False, sep='\t')
   #print(importances)
 
 
