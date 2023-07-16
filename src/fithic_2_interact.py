@@ -11,6 +11,7 @@ for chrm in os.listdir('data/fithic_loops/'):
     data = pd.read_csv('data/fithic_loops/'+chrm+'/fithic_filtered.bedpe', sep='\t')
 
     data.rename(columns={'chr1':'sourceChrom','start1':'sourceStart','end1':'sourceEnd','chr2':'targetChrom','start2':'targetStart','end2':'targetEnd','contactCount':'value'}, inplace=True)
+    data = data.loc[data['q-value']<0.01,].copy()
     data.drop(['p-value', 'q-value', 'bias1', 'bias2'], axis=1, inplace=True)
 
     data['chrom']=data['sourceChrom']

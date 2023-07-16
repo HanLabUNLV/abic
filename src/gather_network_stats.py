@@ -17,6 +17,7 @@ for gene in gene_tss:
     try:
         with open('data/gene_networks_validated_2/'+gene+'_network.pkl','rb') as f:
             network = pkl.load(f)
+            network.simplify()
     except:
         print('Network not found for gene: '+ gene)
         continue

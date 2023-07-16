@@ -4,6 +4,8 @@ import pandas as pd
 import os.path
 import argparse
 import time
+import joblib as jl
+
 #this script will generate the networks in a more stringent fashion, by only considering edges that had fithic fdr < 0.01 and filtering out any enhancers not validated in gasperini
 tstart = time.time()
 resolution = 5000
@@ -101,8 +103,8 @@ if genes[gene][0] in valid_chr:
     if network!=False:
         network = add_validated_attr(network, validation)
         #NOTE TO FUTURE SELF: copy this and src/predictor.py back over to /data8/
-        with open('data/gene_networks_validated/'+gene+'_network.pkl','wb') as f:
-            pkl.dump(network, f)
+        with open('data/gene_networks_validated_2/'+gene+'_network.pkl','wb') as f:
+            jl.dump(network, f)
 
 tend = time.time()
 print('Execution time: ' + str(tend - tstart))

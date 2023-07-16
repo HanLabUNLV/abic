@@ -6,7 +6,7 @@ import joblib as jl
 
 #import mira's dataset
 #import my dataset
-mira = pd.read_csv('data/Gasperini2019.at_scale.ABC.TF.txt',sep='\t')
+mira = pd.read_csv('data/Gasperini2019.at_scale.ABC.TF.roles.updated.e0.txt',sep='\t')
 gene_networks_dir = 'data/gene_networks_validated_2/'
 ####mine = pd.read_csv('data/full_feature_matrix.revalidated.final2.tsv',sep='\t')
 
@@ -44,10 +44,13 @@ mira['e3']=0
 res = 5000
 for idx, row in mira.iterrows():
     chrm, start, stop, gene = row.loc[['chrEnhancer','startEnhancer','endEnhancer','GeneSymbol']]
-    node = '_'.join([chrm, str(int(floor(start/res)*res)), str(int(floor(stop/res)*res+ res))])
-
+    node = '_'.join([chrm, str(int(floor(start/res)*res)), str(int(floor(start/res)*res+ res))])
     if os.path.isfile(gene_networks_dir+gene+'_network.pkl'):
-        network = jl.load(gene_networks_dir+gene+'_network.pkl')
+        try:
+            network = jl.load(gene_networks_dir+gene+'_network.pkl')
+        except EOFError:
+            print(gene+': EOF error, corrupted joblib object')
+            continue
         nodes = [v['name'] for v in network.vs]
         if node in nodes:
             try:
@@ -63,5 +66,5 @@ for idx, row in mira.iterrows():
                 mira.loc[idx, 'e3'] = 1
             
 
-mira.to_csv('data/Gasperini2019.at_scale.ABC.TF.roles.updated.txt',sep='\t')
+mira.to_csv('data/Gasperini2019.at_scale.ABC.TF.roles.updated.e0.refactored.txt',sep='\t')
 

@@ -1,7 +1,15 @@
 import igraph as ig
 import pandas as pd
-import pickle as pkl
+import joblib as jl
 from pathlib import Path
+import argparse
+
+parser = argparse.ArgumentParser(description = "Description for my parser")
+parser.add_argument("-g", "--gene", help = "Gene Symbol of single gene", required = False, default = "")
+argument = parser.parse_args()
+
+
+
 #adds tf binding data to nodes in place
 gene_tss_file = 'data/gene_tss.gas.long.tsv'
 gene_networks_dir = 'data/gene_networks_validated_2/'
@@ -18,9 +26,14 @@ for line in lines:
 tf_matrix = pd.read_csv('data/enhancer_chipseq_featurematrix.validated2.tsv',sep='\t')
 ptf_matrix = pd.read_csv('data/promoter_chipseq_featurematrix.tsv',sep='\t')
 #gene = 'JUNB'
-for gene in gene_tss:
-    with open(gene_networks_dir+gene+'_network.pkl','rb') as f:
-        network = pkl.load(f)
+
+if argument.gene == '':
+    genes = list(gene_tss.keys())
+else:
+    genes = [argument.gene]
+
+for gene in genes:
+    network = jl.load(gene_networks_dir+gene+'_network.pkl','rb')
 
     for n in network.vs:
         n['tf'] = {}
@@ -41,5 +54,5 @@ for gene in gene_tss:
                     else:
                         n['tf'][tf].append('NA')
                 
-    with open(gene_networks_dir+gene+'_network.pkl','wb') as f:
-        pkl.dump(network, f)
+    f=gene_networks_dir+gene+'_network.pkl'
+    jl.dump(network, f)
