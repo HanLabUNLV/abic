@@ -7,7 +7,9 @@ This script describes the processing of HiC data in various ways to generate chr
 3. Filter networks based on fithic loops and presence in gasperini
 4. Label the roles of enhancers in the network
 
-We begin by generating the base networks from the hic data. This is achieved by running the script `generate_base_networks.py`. The script takes the name of a gene as the only command line argument and is made to be used with linux parallel to efficiently produce the networks. An example of how to use the script is as follows. 
+We begin by generating the base networks from the hic data. This is achieved by running the script `generate_base_networks.py`. The script takes the name of a gene as the only command line argument and is made to be used with linux parallel to efficiently produce the networks. An example of how to use the script is as follows, first in serial, then in parallel. 
+
+`python src/generate_base_networks.py ADAMTS14`
 
 `cat gene.list | parallel --max-args 1 -j 8 -I % python src/generate_base_networks.py %`
 
