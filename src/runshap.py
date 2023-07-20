@@ -624,10 +624,17 @@ if __name__ == "__main__":
   plt.close(fig)
 
 
+  # heatmap
+  #fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  #shap.plots.heatmap(shap_pandas.to_numpy())
+  #plt.savefig(outdir+'/'+'shap.'+studyname+'.shap.pdf')
+  #fig.clf()
+  #plt.close(fig)
+
   # plot dependency for top features 
   shap_order = shap_pandas.abs().mean().sort_values(ascending=[False])
-  for i in range(0,20):
-    for j in range(0,20):
+  for i in range(0,25):
+    for j in range(0,25):
       fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
       shap.dependence_plot(shap_order.index[i], shap_values=shap_values, features=X, interaction_index=shap_order.index[j])
       plt.savefig(outdir+'/'+'dependence.'+shap_order.index[i]+'x'+shap_order.index[j]+'.pdf')

@@ -1,9 +1,10 @@
-python src/mira_cross_val_bayescv.eroles.xgb.boruta.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run.boruta/run.boruta4 --port 17203 --studyname boruta4 --init
+python src/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta6 --init
 bash opt.sh
 bash featureselection.sh
-python src/mira_cross_val_bayescv.eroles.xgb.boruta.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run.boruta/run.boruta4 --port 17203 --studyname boruta4 --dropfeatures
-python src/mira_cross_val_bayescv.eroles.xgb.boruta.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run.boruta/run.boruta4 --port 17203 --studyname boruta4 --init2pass
+python src/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta6 --dropfeatures
+python src/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta6 --init2pass
 bash opt2pass.sh
-python src/mira_cross_val_bayescv.eroles.xgb.boruta.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run.boruta/run.boruta4 --port 17203 --studyname boruta4.2pass --test
+python src/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta6.2pass --test
+bash src/apply_model.sh
 
-python -i src/runshap.py --modeldir run.boruta/run.boruta4/ --studyname boruta4.2pass --outdir run.applymodel/boruta4/
+python -i src/runshap.py --modeldir run/ --studyname boruta6.2pass --outdir applymodel/

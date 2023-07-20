@@ -585,6 +585,7 @@ class OuterFolds:
         study = optuna.load_study(study_name=study_name, storage=self.storage) 
         print("Loaded study  %s with  %d trials." % (study_name, len(study.trials)))
         X_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
+        X_split = X_split.drop(columns = ['ABC.id'])
         print(X_split)
         y_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
         y_split = y_split['Significant']
@@ -627,6 +628,7 @@ class OuterFolds:
         if (classifier == 'rf'):
             params['num_boost_round'] = 1
         X_train = pd.read_csv(outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+        X_train = X_train.drop(columns = ['ABC.id'])
         y_train = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
         y_train = y_train['Significant']
         dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
@@ -688,9 +690,9 @@ class OuterFolds:
             X_split = X_split.drop(columns = features_to_drop)
             X_split.to_csv(outdir +'/'+new_study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t')
             X_split = X_split.drop(columns = ['ABC.id'])
-            os.symlink(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.ysplit.'+str(outer_index)+'.txt')
-            os.symlink(outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt')
-            os.symlink(outdir +'/'+self.study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt')
+            os.symlink(os.path.abspath(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt'), outdir +'/'+new_study_name_prefix+'.ysplit.'+str(outer_index)+'.txt')
+            os.symlink(os.path.abspath(outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt'), outdir +'/'+new_study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt')
+            os.symlink(os.path.abspath(outdir +'/'+self.study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt'), outdir +'/'+new_study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt')
        
             src_path = outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt'
             #X_test = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
@@ -698,9 +700,9 @@ class OuterFolds:
             X_test = X_test.drop(columns = features_to_drop)
             X_test.to_csv(outdir +'/'+new_study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
             X_test = X_test.drop(columns = ['ABC.id'])
-            os.symlink(outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.ytest.'+str(outer_index)+'.txt')
-            os.symlink(outdir +'/'+self.study_name_prefix+'.grouptest.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.grouptest.'+str(outer_index)+'.txt')
-            os.symlink(outdir +'/'+self.study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt', outdir +'/'+new_study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt')
+            os.symlink(os.path.abspath(outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt'), outdir +'/'+new_study_name_prefix+'.ytest.'+str(outer_index)+'.txt')
+            os.symlink(os.path.abspath(outdir +'/'+self.study_name_prefix+'.grouptest.'+str(outer_index)+'.txt'), outdir +'/'+new_study_name_prefix+'.grouptest.'+str(outer_index)+'.txt')
+            os.symlink(os.path.abspath(outdir +'/'+self.study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt'), outdir +'/'+new_study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt')
  
             #y_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
             y_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
@@ -890,12 +892,8 @@ if __name__ == "__main__":
       #import our data, then format it #
       ##################################
 
-      data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.train.txt',sep='\t', header=0)
-      #data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt',sep='\t', header=0)
+      data2 = pd.read_csv(base_directory+'/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.train.txt',sep='\t', header=0)
       data2 = data2.loc[:,~data2.columns.str.match("Unnamed")]
-      #data2 = pd.read_csv('/data8/han_lab/mhan/abcd/data/Gasperini/Gasperini2019.at_scale.ABC.TF.eindirect.txt',sep='\t', header=0)
-      #data2 = data2.loc[(data2['e2']==1) | (data2['e3']==1),]
-      #data2['distance'] = data2.apply(lambda row: np.absolute(row.start_x - row.TargetGeneTSS), axis=1)
       if (args.e1):
         data2 = data2.loc[data2['e1']==1,]
       elif (args.e1minus):

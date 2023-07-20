@@ -34,16 +34,16 @@ if __name__ == "__main__":
         "run.boruta7/boruta7.2pass.confusion.xgb.3.txt",
         ]
     pr_test = [
-            "applymodel/gasperini/pr_curve.boruta7.2pass.save.0.txt",
-            "applymodel/gasperini/pr_curve.boruta7.2pass.save.1.txt",
-            "applymodel/gasperini/pr_curve.boruta7.2pass.save.2.txt",
-            "applymodel/gasperini/pr_curve.boruta7.2pass.save.3.txt", 
+            "applymodel/fulco/pr_curve.boruta7.2pass.save.0.txt",
+            "applymodel/fulco/pr_curve.boruta7.2pass.save.1.txt",
+            "applymodel/fulco/pr_curve.boruta7.2pass.save.2.txt",
+            "applymodel/fulco/pr_curve.boruta7.2pass.save.3.txt", 
             ]
     confusion_test = [
-        "applymodel/gasperini/confusion.boruta7.2pass.save.0.txt",
-        "applymodel/gasperini/confusion.boruta7.2pass.save.1.txt",
-        "applymodel/gasperini/confusion.boruta7.2pass.save.2.txt",
-        "applymodel/gasperini/confusion.boruta7.2pass.save.3.txt",
+        "applymodel/fulco/confusion.boruta7.2pass.save.0.txt",
+        "applymodel/fulco/confusion.boruta7.2pass.save.1.txt",
+        "applymodel/fulco/confusion.boruta7.2pass.save.2.txt",
+        "applymodel/fulco/confusion.boruta7.2pass.save.3.txt",
         ]
 
     i = 0
@@ -53,31 +53,31 @@ if __name__ == "__main__":
     y_proba_test = []
 
     fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(6, 6))
-    for i in range(4):
-        prcurve_from_file(pr_cv[i], confusion_cv[i], y_real_cv, y_proba_cv, 'blue')
-        i += 1
+    #for i in range(4):
+    #    prcurve_from_file(pr_cv[i], confusion_cv[i], y_real_cv, y_proba_cv, 'blue')
+    #    i += 1
  
     for i in range(4):
         prcurve_from_file(pr_test[i], confusion_test[i], y_real_test, y_proba_test, 'red')
         i += 1
 
-    y_real_cv = np.concatenate(y_real_cv)
-    y_proba_cv = np.concatenate(y_proba_cv)
-    precision, recall, _ = precision_recall_curve(y_real_cv, y_proba_cv)
-    plt.plot(recall, precision, color='blue',
-             label=r'Test(outer fold CV) (AUC = %0.2f)' % (average_precision_score(y_real_cv, y_proba_cv)),
-             lw=2, alpha=.8)
+    #y_real_cv = np.concatenate(y_real_cv)
+    #y_proba_cv = np.concatenate(y_proba_cv)
+    #precision, recall, _ = precision_recall_curve(y_real_cv, y_proba_cv)
+    #plt.plot(recall, precision, color='blue',
+    #         label=r'Test(outer fold CV) (AUC = %0.2f)' % (average_precision_score(y_real_cv, y_proba_cv)),
+    #         lw=2, alpha=.8)
 
     y_real_test = np.concatenate(y_real_test)
     y_proba_test = np.concatenate(y_proba_test)
     precision, recall, _ = precision_recall_curve(y_real_test, y_proba_test)
     plt.plot(recall, precision, color='red',
-             label=r'Test(chr 5,10,15,20) (AUC = %0.2f)' % (average_precision_score(y_real_test, y_proba_test)),
+             label=r'Test(Fulco) (AUC = %0.2f)' % (average_precision_score(y_real_test, y_proba_test)),
              lw=2, alpha=.8)
 
 
 
-    ABC_pd = pd.read_csv('data/Gasperini2019.at_scale.ABC.TF.cobinding.txt', sep="\t", index_col=None)
+    ABC_pd = pd.read_csv('data/Fulco2019.CRISPR.ABC.TF.cobinding.txt', sep="\t", index_col=None)
     ABC_score = ABC_pd['ABC.Score'] 
     distance = 1/np.log(ABC_pd['distance'])
     y = ABC_pd['Significant']
