@@ -330,6 +330,7 @@ class Objective:
     self.cls_weight = cls_weight
     self.study_name_prefix = study_name_prefix
 
+
   def __call__(self, trial):
     # Calculate an objective value by using the extra arguments.
 
@@ -477,12 +478,13 @@ class Objective:
 
 # class outer folds
 class OuterFolds:
-    def __init__(self, foldsplit, nfold, storage, study_name_prefix, scoring):
+    def __init__(self, foldsplit, nfold, storage, study_name_prefix, outdir, scoring):
       # Hold this implementation specific arguments as the fields of the class.
-      self.study_name_prefix=study_name_prefix
       self.outer_split = foldsplit
       self.nfold = nfold
       self.storage = storage
+      self.study_name_prefix=study_name_prefix
+      self.outdir=outdir
       self.scoring = scoring
       self.outer_results = pd.DataFrame()
       #self.X_splits = {}
@@ -513,46 +515,29 @@ class OuterFolds:
             X_split = X.iloc[train_idx, :].copy()
             y_split = y.iloc[train_idx].copy()
             group_train = self.groups.iloc[train_idx]
-            X_split.to_csv(outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t')
-            y_split.to_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t')
-            group_train.to_csv(outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt', sep='\t')
+            X_split.to_csv(self.outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t')
+            y_split.to_csv(self.outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t')
+            group_train.to_csv(self.outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt', sep='\t')
             #self.X_splits[outer_index] = X_split
             #self.y_splits[outer_index] = y_split
             #self.group_splits[outer_index] = group_train
             ABCid_split = X_split['ABC.id']
-            ABCid_split.to_csv(outdir +'/'+self.study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt', sep='\t')
+            ABCid_split.to_csv(self.outdir +'/'+self.study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt', sep='\t')
             X_split = X_split.drop(columns = ['ABC.id'])
-
-            cols = X_split.columns
-            scaler = preprocessing.MinMaxScaler()
-            scaler.fit(X_split)
-            X_split = pd.DataFrame(scaler.transform(X_split), columns = cols)
-            dtrain = xgb.DMatrix(X_split, label=y_split)
-            dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
-            dtrain.save_binary(dtrainfilename)
-            #self.dtrains[outer_index] = dtrain
-            #self.dtrainfilenames[outer_index] = dtrainfilename
-            joblib.dump(scaler, outdir +'/'+self.study_name_prefix+'.scaler.'+str(outer_index)+'.gz')
 
             X_test = X.iloc[test_idx,:].copy()
             y_test = y.iloc[test_idx].copy()
             group_test = self.groups.iloc[test_idx]
-            X_test.to_csv(outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
-            y_test.to_csv(outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt', sep='\t')
-            group_test.to_csv(outdir +'/'+self.study_name_prefix+'.grouptest.'+str(outer_index)+'.txt', sep='\t')
+            X_test.to_csv(self.outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
+            y_test.to_csv(self.outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt', sep='\t')
+            group_test.to_csv(self.outdir +'/'+self.study_name_prefix+'.grouptest.'+str(outer_index)+'.txt', sep='\t')
             #self.X_tests[outer_index] = X_test
             #self.y_tests[outer_index] = y_test
             #self.group_tests[outer_index] = group_test
             ABCid_test = X_test['ABC.id']
-            ABCid_test.to_csv(outdir +'/'+self.study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt', sep='\t')
+            ABCid_test.to_csv(self.outdir +'/'+self.study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt', sep='\t')
             X_test = X_test.drop(columns = ['ABC.id'])
 
-            X_test = pd.DataFrame(scaler.transform(X_test), columns = cols)
-            dtest = xgb.DMatrix(X_test) 
-            dtestfilename = outdir +'/'+'dtest.'+str(outer_index)+'.data'
-            dtest.save_binary(dtestfilename)
-            #self.dtests[outer_index] = dtest
-            #self.dtestfilenames[outer_index] = dtestfilename
             outer_index=outer_index+1
 
 
@@ -572,6 +557,22 @@ class OuterFolds:
 
 
 
+    def preprocess(self, X, y, group, scaler_dump):
+        X = X.drop(columns = ['ABC.id'])
+        cols = X.columns
+        if os.path.exists(scaler_dump):
+            scaler = joblib.load(scaler_dump)
+        else: 
+            scaler = preprocessing.MinMaxScaler()
+            scaler.fit(X)
+            joblib.dump(scaler, scaler_dump)
+        X = pd.DataFrame(scaler.transform(X), columns = cols)
+        y = y['Significant']
+        if group is not None:
+            group = group['group']
+        return X, y, group
+ 
+
 
     def optimize_hyperparams(self, model, outer_index, n_inner_fold=4, scoring='map'):
         #outer_index = 0
@@ -584,19 +585,16 @@ class OuterFolds:
         study_name = self.study_name_prefix+'.'+model+"."+str(outer_index)
         study = optuna.load_study(study_name=study_name, storage=self.storage) 
         print("Loaded study  %s with  %d trials." % (study_name, len(study.trials)))
-        X_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
+        X_split = pd.read_csv(self.outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
         X_split = X_split.drop(columns = ['ABC.id'])
-        print(X_split)
-        y_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
+        y_split = pd.read_csv(self.outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
         y_split = y_split['Significant']
-        print(y_split)
+        group_split = pd.read_csv(self.outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
+        scaler_dump = self.outdir +'/'+self.study_name_prefix+'.scaler.'+str(outer_index)+'.gz'
+        X_split, y_split, group_split = self.preprocess(X_split, y_split, group_split, scaler_dump=scaler_dump)
         counter = Counter(y_split)
         estimate = counter[0] / counter[1]
         cls_weight = (y_split.shape[0] - np.sum(y_split)) / np.sum(y_split)
-        dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
-        dtrain = xgb.DMatrix(dtrainfilename)
-        group_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
-        group_split = group_split['group']
         
         #run Optuna search with inner search CV on outer split data 
         inner_splits = StratifiedGroupKFold(n_splits=n_inner_fold, shuffle=True, random_state=RANDOM_SEED)
@@ -627,12 +625,15 @@ class OuterFolds:
         params['objective'] = "binary:logistic" 
         if (classifier == 'rf'):
             params['num_boost_round'] = 1
-        X_train = pd.read_csv(outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+        X_train = pd.read_csv(self.outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
         X_train = X_train.drop(columns = ['ABC.id'])
-        y_train = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+        y_train = pd.read_csv(self.outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
         y_train = y_train['Significant']
+        scaler_dump = self.outdir +'/'+self.study_name_prefix+'.scaler.'+str(outer_index)+'.gz'
+        X_train, y_train, group_train =  self.preprocess(X_train, y_train, group=None, scaler_dump=scaler_dump)
         dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
         dtrain = xgb.DMatrix(dtrainfilename)
+
         print("  Params: ")
         for key, value in params.items():
             print("    {}: {}".format(key, value))
@@ -660,58 +661,51 @@ class OuterFolds:
                    train_or_test = 'train', normalize=True, verbose=True)
         fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(200, 50))
         Feature_Selector.plot(which_features='all')
-        plt.savefig(outdir+'/'+'boruta.'+self.study_name_prefix+'.'+str(outer_index)+'.pdf')
+        plt.savefig(self.outdir+'/'+'boruta.'+self.study_name_prefix+'.'+str(outer_index)+'.pdf')
         plt.close()
-        Feature_Selector.results_to_csv(filename=outdir+'/'+self.study_name_prefix+'.feature_importance.'+str(outer_index)+'.txt')
+        Feature_Selector.results_to_csv(filename=self.outdir+'/'+self.study_name_prefix+'.feature_importance.'+str(outer_index)+'.txt')
         features_to_remove = pd.DataFrame({"features":Feature_Selector.features_to_remove})
         print(features_to_remove)
-        features_to_remove.to_csv(outdir+'/'+self.study_name_prefix+'.features_to_remove.'+str(outer_index)+'.txt', index=False, sep='\t')
+        features_to_remove.to_csv(self.outdir+'/'+self.study_name_prefix+'.features_to_remove.'+str(outer_index)+'.txt', index=False, sep='\t')
 
 
 
 
     def drop_features(self):
         new_study_name_prefix = self.study_name_prefix+'.2pass'
-        featurenames = np.loadtxt(outdir+'/'+self.study_name_prefix+'.featurelabels.txt', skiprows=1, dtype='str')
+        featurenames = np.loadtxt(self.outdir+'/'+self.study_name_prefix+'.featurelabels.txt', skiprows=1, dtype='str')
         print(featurenames)
         features_to_drop = featurenames
         for outer_index in range(self.nfold):
-            features_to_drop_fold = np.loadtxt(outdir+'/'+self.study_name_prefix+'.features_to_remove.'+str(outer_index)+'.txt', skiprows=1, dtype='str')
+            features_to_drop_fold = np.loadtxt(self.outdir+'/'+self.study_name_prefix+'.features_to_remove.'+str(outer_index)+'.txt', skiprows=1, dtype='str')
             print(features_to_drop_fold)
             features_to_drop = np.intersect1d(features_to_drop, features_to_drop_fold)
         print(features_to_drop)
         features_to_drop = np.append(features_to_drop, ['hic_contact_pl_scaled_adj', 'ABC.Score', 'ABC.Score.Numerator', 'ABC.Score.Denominator', 'TargetGenePromoterActivityQuantile'])
         print(features_to_drop)
-        np.savetxt(outdir+'/'+new_study_name_prefix+'.features_dropped.txt', np.transpose([features_to_drop]), fmt="%s") 
+        np.savetxt(self.outdir+'/'+new_study_name_prefix+'.features_dropped.txt', np.transpose([features_to_drop]), fmt="%s") 
         for outer_index in range(self.nfold):
-            src_path = outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt'
+            src_path = self.outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt'
             #X_split = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
             X_split = pd.read_csv(src_path, sep='\t', index_col=0)
             X_split = X_split.drop(columns = features_to_drop)
-            X_split.to_csv(outdir +'/'+new_study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t')
+            X_split.to_csv(self.outdir +'/'+new_study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t')
             X_split = X_split.drop(columns = ['ABC.id'])
-            os.symlink(os.path.abspath(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt'), outdir +'/'+new_study_name_prefix+'.ysplit.'+str(outer_index)+'.txt')
-            os.symlink(os.path.abspath(outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt'), outdir +'/'+new_study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt')
-            os.symlink(os.path.abspath(outdir +'/'+self.study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt'), outdir +'/'+new_study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt')
+
+            os.symlink(self.outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', self.outdir +'/'+new_study_name_prefix+'.ysplit.'+str(outer_index)+'.txt')
+            os.symlink(self.outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt', self.outdir +'/'+new_study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt')
+            os.symlink(self.outdir +'/'+self.study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt', self.outdir +'/'+new_study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt')
        
-            src_path = outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt'
+            src_path = self.outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt'
             #X_test = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
             X_test = pd.read_csv(src_path, sep='\t', index_col=0)
             X_test = X_test.drop(columns = features_to_drop)
-            X_test.to_csv(outdir +'/'+new_study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
+            X_test.to_csv(self.outdir +'/'+new_study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
             X_test = X_test.drop(columns = ['ABC.id'])
-            os.symlink(os.path.abspath(outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt'), outdir +'/'+new_study_name_prefix+'.ytest.'+str(outer_index)+'.txt')
-            os.symlink(os.path.abspath(outdir +'/'+self.study_name_prefix+'.grouptest.'+str(outer_index)+'.txt'), outdir +'/'+new_study_name_prefix+'.grouptest.'+str(outer_index)+'.txt')
-            os.symlink(os.path.abspath(outdir +'/'+self.study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt'), outdir +'/'+new_study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt')
+            os.symlink(self.outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt', self.outdir +'/'+new_study_name_prefix+'.ytest.'+str(outer_index)+'.txt')
+            os.symlink(self.outdir +'/'+self.study_name_prefix+'.grouptest.'+str(outer_index)+'.txt', self.outdir +'/'+new_study_name_prefix+'.grouptest.'+str(outer_index)+'.txt')
+            os.symlink(self.outdir +'/'+self.study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt', self.outdir +'/'+new_study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt')
  
-            #y_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
-            y_split = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
-            dtrain = xgb.DMatrix(X_split, label=y_split)
-            dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
-            dtrain.save_binary(dtrainfilename)
-            dtest = xgb.DMatrix(X_test) 
-            dtestfilename = outdir +'/'+'dtest.'+str(outer_index)+'.data'
-            dtest.save_binary(dtestfilename)
 
 
  
@@ -755,42 +749,45 @@ class OuterFolds:
                 params['max_depth'] = 4
                 if (classifier == 'rf'):
                     params['num_boost_round'] = 1
-                dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
-                dtrain = xgb.DMatrix(dtrainfilename)
+
+
+
+                X_train = pd.read_csv(self.outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+                y_train = pd.read_csv(self.outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+                scaler_dump = self.outdir +'/'+self.study_name_prefix+'.scaler.'+str(outer_index)+'.gz'
+                X_train, y_train, group_train = self.preprocess(X_train, y_train, group=None, scaler_dump=scaler_dump) 
+                dtrain = xgb.DMatrix(X_train, label=y_train)
                 xgb_clf_tuned_2 = xgb.train(params=params, dtrain=dtrain, num_boost_round=trial.user_attrs['best_iteration'])
-                #xgb_clf_tuned_2 = xgb.train(params=params, dtrain=dtrain, num_boost_round=params['num_boost_round'])
                 lst_vars_in_model = xgb_clf_tuned_2.feature_names
                 print(lst_vars_in_model)
                 featurenames = pd.DataFrame({"features":lst_vars_in_model})
-                featurenames.to_csv(outdir+'/'+self.study_name_prefix+'.featurenames'+'.'+str(outer_index)+'.txt', index=False, sep='\t')
+                featurenames.to_csv(self.outdir+'/'+self.study_name_prefix+'.featurenames'+'.'+str(outer_index)+'.txt', index=False, sep='\t')
                 best_iteration = xgb_clf_tuned_2.best_iteration
                 print("new best_iteration: "+str(best_iteration))
-                xgb_clf_tuned_2.save_model(outdir+'/'+self.study_name_prefix+'.save'+'.'+str(outer_index)+'.json')
-                xgb_clf_tuned_2.dump_model(outdir+'/'+self.study_name_prefix+'.dump'+'.'+str(outer_index)+'.json')
+                xgb_clf_tuned_2.save_model(self.outdir+'/'+self.study_name_prefix+'.save'+'.'+str(outer_index)+'.json')
+                xgb_clf_tuned_2.dump_model(self.outdir+'/'+self.study_name_prefix+'.dump'+'.'+str(outer_index)+'.json')
                 config_str = xgb_clf_tuned_2.save_config()
-                with open(outdir+'/'+self.study_name_prefix+'.config'+'.'+str(outer_index)+'.json', "w") as config_file: 
+                with open(self.outdir+'/'+self.study_name_prefix+'.config'+'.'+str(outer_index)+'.json', "w") as config_file: 
                     config_file.write(config_str)
                 print(config_str)
                 
-                X_test = pd.read_csv(outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
-                y_test = pd.read_csv(outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
-                y_test = y_test['Significant']
-                print(y_test)
-                dtestfilename = outdir +'/'+'dtest.'+str(outer_index)+'.data'
-                dtest = xgb.DMatrix(dtestfilename)
+                X_test = pd.read_csv(self.outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+                y_test = pd.read_csv(self.outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+                X_test, y_test, group_test = self.preprocess(X_test, y_test, group=None, scaler_dump=scaler_dump) 
+                dtest = xgb.DMatrix(X_test, label=y_test)
                 y_pred_prob = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration)
                 print(y_pred_prob)
                 y_pred = [round(value) for value in y_pred_prob]
                 test_pd = pd.DataFrame({'y_pred':y_pred, 'y_prob':y_pred_prob}, index=y_test.index)
                 y_res = pd.merge(y_test, test_pd, left_index=True, right_index=True)
                 #res = pd.merge(y_res, X_test, left_index=True, right_index=True)
-                y_res.to_csv(outdir+'/'+self.study_name_prefix+'.confusion.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
+                y_res.to_csv(self.outdir+'/'+self.study_name_prefix+'.confusion.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
                 # Data to plot precision - recall curve
                 precision, recall, thresholds = precision_recall_curve(y_test, y_pred_prob, pos_label = 1)
                 print(precision)
                 print(recall)
                 pr = pd.DataFrame({'precision':precision,'recall':recall,'thresholds':np.append(thresholds,None)})
-                pr.to_csv(outdir+'/'+self.study_name_prefix+'.pr_curve.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
+                pr.to_csv(self.outdir+'/'+self.study_name_prefix+'.pr_curve.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
  
                 aucpr = auc(recall, precision)
                 average_precision = average_precision_score(y_test, y_pred_prob)
@@ -886,7 +883,7 @@ if __name__ == "__main__":
   #outer_split = StratifiedKFold(n_splits=nfold, shuffle=True, random_state=RANDOM_SEED)
   outer_split = StratifiedGroupKFold(n_splits=nfold, shuffle=True, random_state=RANDOM_SEED)
   storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
-  outerFolds = OuterFolds(outer_split, nfold, storage, study_name_prefix, '')
+  outerFolds = OuterFolds(outer_split, nfold, storage, study_name_prefix, outdir, '')
   if (run_init == True):
       #################################
       #import our data, then format it #
