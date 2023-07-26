@@ -437,7 +437,6 @@ class Objective:
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
-  parser.add_argument('--dir', required=True, help="directory containing edgelist and vertices files")
   parser.add_argument('--outdir', default='.', help="directory containing edgelist and vertices files")
   parser.add_argument('--chr', default='all', help="chromosome")
   parser.add_argument('--scalerfile', required=True, help="scaler saved after training in json file")
@@ -448,7 +447,6 @@ if __name__ == "__main__":
   args=parser.parse_args()
   pid = os.getpid()
 
-  base_directory = args.dir
   chromosome = args.chr
   outdir = args.outdir
   scalerfile = args.scalerfile
