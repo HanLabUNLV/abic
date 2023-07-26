@@ -9,7 +9,7 @@ Data download: [link](https://drive.google.com/drive/folders/1afVv9AaLuRGDwD4U6s
 ## optuna   
   
 the pipeline uses optuna for hyperparameter optimization.  
-It uses a RDB server to run parallel optimization across multiple processes.  
+It uses an RDB server to run parallel optimization across multiple processes.  
 It needs a running RDB server on the localhost with the port number assigned.   
 See the optuna documentation for more information.  
   
@@ -19,7 +19,7 @@ See the optuna documentation for more information.
 ## initialization  
 Sets up the grouped nested cross validation folds.  
 Creates the study on the optuna RDB server with the user provided study name  
-Here we are using boruta7 as the study name  and 49091 as the port number for the RDB server as an example.  
+Here we are using boruta7 as the study name and 49091 as the port number for the RDB server as an example.  
 ```  
 python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --init  
 ```  
@@ -61,6 +61,7 @@ python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir ru
 ```  
   
 ## initialize the 2nd pass learning based on selected features  
+creates a new optuna study with the name _[studyname].2pass_
 ```  
 python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --init2pass  
 ```  
@@ -84,7 +85,7 @@ nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --out
 ```  
   
   
-## evaluate the learned model on the outer fold test partitions  
+## evaluate the learned models on the outer fold test partitions  
 ```  
 python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --test  
 ```  
