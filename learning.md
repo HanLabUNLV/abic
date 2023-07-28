@@ -21,7 +21,7 @@ Sets up the grouped nested cross validation folds.
 Creates the study on the optuna RDB server with the user provided study name  
 Here we are using boruta7 as the study name and 49091 as the port number for the RDB server as an example.  
 ```  
-python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --init  
+python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --init  
 ```  
   
 ## preliminary learning of boosted trees for feature selection  
@@ -30,18 +30,18 @@ optimization is called on each outer folds independently.
 here we are utilizing parallelization and calling 3 processes per fold.  
   
 ```  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 0 &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 0 &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 0 &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 1 &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 1 &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 1 &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 2  &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 2  &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 2  &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 3 &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 3  &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 3  &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 0 &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 0 &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 0 &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 1 &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 1 &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 1 &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 2  &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 2  &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 2  &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 3 &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 3  &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --opt --model 'xgb' --outerfold 3  &> /dev/null &  
 ```  
   
   
@@ -49,45 +49,45 @@ nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --out
 we use boruta for feature selection  
   
 ```  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --fs --model 'xgb' --outerfold 0 &> fs.0.log  &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --fs --model 'xgb' --outerfold 1 &> fs.1.log &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --fs --model 'xgb' --outerfold 2  &> fs.2.log &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --fs --model 'xgb' --outerfold 3 &> fs.3.log &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --fs --model 'xgb' --outerfold 0 &> fs.0.log  &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --fs --model 'xgb' --outerfold 1 &> fs.1.log &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --fs --model 'xgb' --outerfold 2  &> fs.2.log &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --fs --model 'xgb' --outerfold 3 &> fs.3.log &  
 ```  
   
 ## drop features determined unimportant in all folds  
 ```  
-python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --dropfeatures  
+python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --dropfeatures  
 ```  
   
 ## initialize the 2nd pass learning based on selected features  
 creates a new optuna study with the name _[studyname].2pass_
 ```  
-python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7 --init2pass  
+python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --init2pass  
 ```  
   
   
 ## new model learning based on the selected features  
   
 ```  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 0 &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 0 &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 0 &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 1 &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 1 &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 1 &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 2  &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 2  &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 2  &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 3 &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 3  &> /dev/null &  
-nohup python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 3  &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 0 &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 0 &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 0 &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 1 &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 1 &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 1 &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 2  &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 2  &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 2  &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 3 &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 3  &> /dev/null &  
+nohup python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --opt --model 'xgb' --outerfold 3  &> /dev/null &  
 ```  
   
   
 ## evaluate the learned models on the outer fold test partitions  
 ```  
-python src/learning/mira_cross_val_bayescv.eroles.xgb.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --test  
+python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7.2pass --test  
 ```  
   
   
