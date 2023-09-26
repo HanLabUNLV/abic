@@ -34,16 +34,16 @@ if __name__ == "__main__":
         "run.boruta7/boruta7.2pass.confusion.xgb.3.txt",
         ]
     pr_test = [
-            "applymodel/fulco/pr_curve.boruta7.2pass.save.0.txt",
-            "applymodel/fulco/pr_curve.boruta7.2pass.save.1.txt",
-            "applymodel/fulco/pr_curve.boruta7.2pass.save.2.txt",
-            "applymodel/fulco/pr_curve.boruta7.2pass.save.3.txt", 
+            "applymodel/Fulco/pr_curve.boruta7.2pass.save.0.txt",
+            "applymodel/Fulco/pr_curve.boruta7.2pass.save.1.txt",
+            "applymodel/Fulco/pr_curve.boruta7.2pass.save.2.txt",
+            "applymodel/Fulco/pr_curve.boruta7.2pass.save.3.txt", 
             ]
     confusion_test = [
-        "applymodel/fulco/confusion.boruta7.2pass.save.0.txt",
-        "applymodel/fulco/confusion.boruta7.2pass.save.1.txt",
-        "applymodel/fulco/confusion.boruta7.2pass.save.2.txt",
-        "applymodel/fulco/confusion.boruta7.2pass.save.3.txt",
+        "applymodel/Fulco/confusion.boruta7.2pass.save.0.txt",
+        "applymodel/Fulco/confusion.boruta7.2pass.save.1.txt",
+        "applymodel/Fulco/confusion.boruta7.2pass.save.2.txt",
+        "applymodel/Fulco/confusion.boruta7.2pass.save.3.txt",
         ]
 
     i = 0
@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
 
 
-    ABC_pd = pd.read_csv('data/Fulco2019.CRISPR.ABC.TF.cobinding.txt', sep="\t", index_col=None)
+    ABC_pd = pd.read_csv('data/Fulco/Fulco2019.CRISPR.ABC.TF.cobinding.txt', sep="\t", index_col=None)
     ABC_score = ABC_pd['ABC.Score'] 
     distance = 1/np.log(ABC_pd['distance'])
     y = ABC_pd['Significant']
