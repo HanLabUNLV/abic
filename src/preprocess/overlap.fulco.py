@@ -39,9 +39,12 @@ Fulco_enhancer = pd.merge(Fulco_enhancer, ABC_enhancer_H3K4me3, left_on=["ABC.id
 Fulco_enhancer.drop(Fulco_enhancer.filter(regex='_y$').columns, axis=1, inplace=True)
 Fulco_enhancer = pd.merge(Fulco_enhancer, ABC_enhancer_H3K27me3, left_on=["ABC.id"], right_on=["ABC.id"], suffixes=('', '_y'))
 Fulco_enhancer.drop(Fulco_enhancer.filter(regex='_y$').columns, axis=1, inplace=True)
+Fulco_enhancer = Fulco_enhancer.drop_duplicates()
 
 
-Fulco_crispr2 = pd.merge(Fulco_crispr, Fulco_enhancer, left_on=["enhancerID"], right_on=["G.id"])
+Fulco_crispr.to_csv("data/Fulco/Fulco_crispr.txt", sep='\t')
+Fulco_enhancer.to_csv("data/Fulco/Fulco_enhancer.txt", sep='\t')
+Fulco_crispr2 = pd.merge(Fulco_crispr, Fulco_enhancer, left_on=["enhancerID"], right_on=["G.id"], suffixes=('', '_y'))
 Fulco_crispr2.drop(Fulco_crispr2.filter(regex='_y$').columns, axis=1, inplace=True)
 Fulco_crispr2["ABC.id"] = Fulco_crispr2["ABC.id"] + "_" + Fulco_crispr2["Gene"]
 Fulco_crispr2.to_csv("data/Fulco/Fulco2019.CRISPR2.txt", sep='\t')
@@ -63,25 +66,28 @@ ABC.drop(ABC.filter(regex='_y$').columns, axis=1, inplace=True)
 
 
 
-Fulco_crispr_ABC = pd.merge(Fulco_crispr2, ABC, how="left", left_on=["ABC.id"], right_on=["chr:start-end_TargetGene"])
+Fulco_crispr2.to_csv("data/Fulco/Fulco_crispr2.txt", sep='\t')
+ABC.to_csv("data/Fulco/ABC.txt", sep='\t')
+Fulco_crispr_ABC = pd.merge(Fulco_crispr2, ABC, how="left", left_on=["ABC.id"], right_on=["chr:start-end_TargetGene"], suffixes=('', '_y'))
 Fulco_crispr_ABC.drop(Fulco_crispr_ABC.filter(regex='_y$').columns, axis=1, inplace=True)
-remove_dups_not_sig = Fulco_crispr_ABC.duplicated('ABC.id', keep='first') & ~Fulco_crispr_ABC['Significant']
+Fulco_crispr_ABC.to_csv("data/Fulco/fulco.ABC.beforeremovingdups.txt", sep='\t')
+
+remove_dups_not_sig = Fulco_crispr_ABC.duplicated(subset=['G.id', 'ABC.id'], keep='first') & ~Fulco_crispr_ABC['Significant']
 Fulco_crispr_ABC = Fulco_crispr_ABC[~remove_dups_not_sig] # remove duplicates leaving first item except when significant
-Fulco_crispr_ABC = Fulco_crispr_ABC[~Fulco_crispr_ABC.duplicated('ABC.id', keep='last')]  # now remove duplicates leaving last (significant)
+Fulco_crispr_ABC = Fulco_crispr_ABC[~Fulco_crispr_ABC.duplicated(subset=['G.id','ABC.id'], keep='last')]  # now remove duplicates leaving last (significant)
 Fulco_crispr_ABC.to_csv("data/Fulco/Fulco2019.CRISPR.ABC.leftjoin.txt", sep='\t')
 
-Fulco_crispr_ABC = pd.merge(Fulco_crispr2, ABC, left_on=["ABC.id"], right_on=["chr:start-end_TargetGene"])
 Fulco_crispr_ABC = pd.merge(Fulco_crispr2, ABC, left_on=["ABC.id"], right_on=["chr:start-end_TargetGene"], suffixes=('', '_y'))
 Fulco_crispr_ABC.drop(Fulco_crispr_ABC.filter(regex='_y$').columns, axis=1, inplace=True)
-remove_dups_not_sig = Fulco_crispr_ABC.duplicated('ABC.id', keep='first') & ~Fulco_crispr_ABC['Significant']
+remove_dups_not_sig = Fulco_crispr_ABC.duplicated(subset=['G.id','ABC.id'], keep='first') & ~Fulco_crispr_ABC['Significant']
 Fulco_crispr_ABC = Fulco_crispr_ABC[~remove_dups_not_sig] # remove duplicates leaving first item except when significant
-Fulco_crispr_ABC = Fulco_crispr_ABC[~Fulco_crispr_ABC.duplicated('ABC.id', keep='last')]  # now remove duplicates leaving last (significant)
-Fulco_crispr_ABC.to_csv("data/Fulco/Fulco2019.CRISPR.ABC.txt", sep='\t')
+Fulco_crispr_ABC = Fulco_crispr_ABC[~Fulco_crispr_ABC.duplicated(subset=['G.id','ABC.id'], keep='last')]  # now remove duplicates leaving last (significant)
+Fulco_crispr_ABC.to_csv("data/Fulco/Fulco2019.CRISPR.ABC.innerjoin.txt", sep='\t')
 
 
 
 # K562 TF
-Fulco_crispr_ABC = pd.read_csv("data/Fulco/Fulco2019.CRISPR.ABC.txt", sep='\t')
+Fulco_crispr_ABC = pd.read_csv("data/Fulco/Fulco2019.CRISPR.ABC.leftjoin.txt", sep='\t')
 enhancer_TF = pd.read_csv("data/Fulco/Fulco2019.enhancer.TF.overlap.bed", sep="\t", names=['chr', 'start', 'end', 'ID', 'chr.TF', 'start.TF', 'end.TF', 'TF', 'score', 'celltype', 'score2'], header=None)  
 enhancer_TF['count'] = 1
 enhancer_TF_pivot = enhancer_TF.pivot_table(index='ID', columns = 'TF', values='count', aggfunc=np.sum, fill_value=0)  
