@@ -496,6 +496,8 @@ if __name__ == "__main__":
   featurenames = pd.DataFrame({"features":lst_vars_in_model})
   print(featurenames)
   X_test = X_test.reindex(columns = featurenames['features'])
+  X_test.to_csv(outdir+'/Xfeatures.'+prefix+'.txt', index=False, sep='\t')
+  y_test.to_csv(outdir+'/ytarget.'+prefix+'.txt', index=False, sep='\t')
      
   #for be in temp_estimators:
   #    acc = temp_estimators[be]['test_f1']
