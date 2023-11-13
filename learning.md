@@ -21,7 +21,7 @@ Sets up the grouped nested cross validation folds.
 Creates the study on the optuna RDB server with the user provided study name  
 Here we are using boruta7 as the study name and 49091 as the port number for the RDB server as an example.  
 ```  
-python src/learning/learning.py --dir data/ --outdir run --port 49091 --studyname boruta7 --init  
+python src/learning/learning.py --dir data/Gasperini/ --outdir run --port 49091 --studyname boruta7 --init  
 ```  
   
 ## preliminary learning of boosted trees for feature selection  
