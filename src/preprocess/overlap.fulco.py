@@ -7,6 +7,17 @@ Fulco_enhancer = pd.read_csv(data_dir+"Fulco2019.enhancer.ABC.overlap.bed", sep=
 Fulco_TSS = pd.read_csv(data_dir+"Fulco2019.TSS.ABC.overlap.bed", sep='\t')
 Fulco_crispr = pd.read_csv(data_dir+"Fulco2019.STable6a.tab", sep="\t")
 ABC = pd.read_csv(data_dir+"ABC.EnhancerPredictionsAllPutative.txt", sep='\t')
+ABC['ABC.Score.Denominator'] = ABC['ABC.Score.Numerator']/ABC['ABC.Score']
+ABC_by_gene = ABC.groupby('TargetGene')
+ABC_by_gene[["ABC.Score.Denominator"]].mean()
+def replaceNA(group):
+    mask = group.isna()
+    # Select those values where it is NA, and replace
+    # them with the mean of the values which are not NA.
+    group[mask] = group[~mask].mean()
+    return group
+Denominator_NA_replaced = ABC_by_gene["ABC.Score.Denominator"].transform(replaceNA)
+ABC['ABC.Score.Denominator'] = Denominator_NA_replaced
 
 new = Fulco_enhancer["G.id"].str.split("|", n=1, expand=True)
 Fulco_enhancer["G.class"]=new[0]
