@@ -4,24 +4,11 @@ import joblib
 from pathlib import Path
 os.environ["OMP_NUM_THREADS"] = "4" # export OMP_NUM_THREADS=4
 import numpy as np
-from  scipy.stats import rankdata as rank
 import matplotlib.pyplot as plt
-from statistics import mean, stdev
-from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn import preprocessing
-from sklearn.datasets import load_digits
-from sklearn.model_selection import GridSearchCV, train_test_split, StratifiedKFold, StratifiedGroupKFold, cross_val_score
-from skopt import BayesSearchCV
-from skopt.space import Real, Categorical, Integer 
-from sklearn.pipeline import Pipeline
+from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.decomposition import PCA, NMF
-from sklearn.manifold import TSNE
-from sklearn.feature_selection import SelectKBest, chi2
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.metrics import precision_recall_curve, auc, average_precision_score, balanced_accuracy_score, make_scorer, f1_score
-from sklearn.svm import LinearSVC, SVC
-from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import precision_recall_curve, auc, average_precision_score, balanced_accuracy_score, f1_score
 import pandas as pd
 import xgboost as xgb
 import optuna
@@ -47,276 +34,15 @@ def set_num_threads(num):
   
 
 
-#helper class that allows you to iterate over multiple classifiers within the nested for loop
-class EstimatorSelectionHelper:
-    def __init__(self, models, storage=None):
-        #if not set(models.keys()).issubset(set(params.keys())):
-        #    missing_params = list(set(models.keys()) - set(params.keys()))
-        #    raise ValueError("Some estimators are missing parameters: %s" % missing_params)
-        self.models = models
-        self.grid_searches = {}
-        self.scores = {}
-        self.best_estimator_ = None
-        self.best_estimators_ = {}
-        self.storage = storage
-        self.studies = {}
-        for model in self.models: 
-            self.studies[model] = {}
-        self.current_model = {}
-        self.current_idx = {}
 
 
-    def score_summary(self, sort_by='mean_score'):
-        def row(key, scores, params):
-            d = {
-                 'estimator': key,
-                 'min_score': min(scores),
-                 'max_score': max(scores),
-                 'mean_score': np.mean(scores),
-                 'std_score': np.std(scores),
-            }
-            return pd.Series({**params,**d})
-
-        rows = []
-        for k in self.grid_searches:
-            #print(k)
-            params = self.grid_searches[k].cv_results_['params']
-            scores = []
-            if isinstance(self.grid_searches[k].cv, int):
-                rng = range(self.grid_searches[k].cv)
-            else:
-                rng = range(self.grid_searches[k].cv.get_n_splits())
-            for i in rng:
-                key = "split{}_test_score".format(i)
-                r = self.grid_searches[k].cv_results_[key]        
-                scores.append(r.reshape(len(params),1))
-
-            all_scores = np.hstack(scores)
-            for p, s in zip(params,all_scores):
-                rows.append((row(k, s, p)))
-
-        df = pd.concat(rows, axis=1).T.sort_values([sort_by], ascending=False)
-
-        columns = ['estimator', 'min_score', 'mean_score', 'max_score', 'std_score']
-        columns = columns + [c for c in df.columns if c not in columns]
 
 
-        self.scores = df[columns]
-        return df[columns]
 
-    def best_estimator(self, score='mean_score', method='train', X=None, y=None):
-        grid_searches = self.grid_searches
-        if method=='train':
-            scores = self.scores
-            if len(scores)==0:
-                print('Scores empty, run score_summary()')
-                return False
-            #id estimator with highest score
-            clf0 = scores.sort_values([score]).estimator.to_list()[0]
-            return grid_searches[clf0].best_estimator_
-        if method=='test':
-            test_results = pd.DataFrame(columns=['DimReduction','Classifier','test_bal_accuracy','test_f1','clf_idx'])
-            clfs = []
-            clfidx = 0
-            #choose best estimator from each gridsearch
-            #also store in self.best_estimators_
-            for gs in grid_searches:
-                clf0 = grid_searches[gs].best_estimator_
-                #compute test accuracy
-                test_acc = balanced_accuracy_score(y, clf0.predict(X))
-                test_f1 = f1_score(y, clf0.predict(X))
-                if '_' in gs:
-                    dr, cl = gs.split('_')
-                    classifier = clf0.steps[1]
-                else:
-                    dr = None
-                    cl = gs
-                    classifier = clf0.steps[0]
-                if hasattr(classifier[1], 'feature_importances_'):
-                    importances = classifier[1].feature_importances_ 
-                else:
-                    importances = None
-                self.best_estimators_[gs] = {'clf':clf0, 'test_acc':test_acc, 'test_f1':test_f1, 'importances':importances}
-                test_results = test_results.append(pd.DataFrame({'DimReduction':[dr],'Classifier':[cl],'test_bal_accuracy':[test_acc], 'test_f1':[test_f1], 'clf_idx':[clfidx]}), ignore_index=True)
-                clfs.append(clf0)
-                clfidx += 1
-            #choose clf with highest test accuracy
-            #clfidx = test_results.loc[test_results['test_bal_accuracy'] == test_results.test_bal_accuracy.max(), 'clf_idx'].values[0]
-            clfidx = test_results.loc[test_results['test_f1'] == test_results.test_f1.max(), 'clf_idx'].values[0]
-            self.best_estimator_ = clfs[clfidx]
-            return(clfs[clfidx])
-            
-    def best_params(self, score='mean_score'):
-        if self.best_estimator is None:
-            scores = self.scores
-            if len(scores)==0:
-                print('Scores empty, run score_summary()')
-                return False
-            #id estimator with highest score
-            clf0 = self.scores.sort_values([score]).estimator.to_list()[0]
-            return self.grid_searches[clf0].best_params_
-        else:
-            best_pipeline = self.best_estimator_
-            #print(best_pipeline)
-            steps = [x[0] for x in best_pipeline.get_params()['steps']]
-            best_params = best_pipeline.get_params()
-            if len(steps) == 1:
-              clf_name = steps[0]
-              clf_param_names = [i for i in self.params[clf_name]]
-              clf_param_vals = [best_params[clf_name+'__'+i] for i in clf_param_names]
-              pcols = [clf_name+'__'+i for i in clf_param_names]
-              pcols.extend(['DimReduction','Classifier'])
-              #out = pd.DataFrame(columns=pcols)
-              outdir = {'DimReduction':['None'], 'Classifier':[clf_name]}
-              print(clf_param_vals)
-              for i in range(len(clf_param_names)):
-                  outdir[clf_name+ '__' +clf_param_names[i]] = [clf_param_vals[i]]
-            else:
-              clf_name = steps[1]
-              dimr_name = steps[0]
-              clf_param_names = [i for i in self.params[clf_name]]
-              dr_param_names = [i for i in self.dimr_params[dimr_name]]
-              clf_param_vals = [best_params[clf_name+'__'+i] for i in clf_param_names]
-              dr_param_vals = [best_params[dimr_name+'__'+i] for i in dr_param_names]
-              pcols = [clf_name+'__'+i for i in clf_param_names]
-              pcols.extend([dimr_name+'__'+i for i in dr_param_names])
-              pcols.extend(['DimReduction','Classifier'])
-              #out = pd.DataFrame(columns=pcols)
-              outdir = {'DimReduction':[dimr_name], 'Classifier':[clf_name]}
-              print(clf_param_vals)
-              for i in range(len(clf_param_names)):
-                  outdir[clf_name+ '__' +clf_param_names[i]] = [clf_param_vals[i]]
-              for i in range(len(dr_param_names)):
-                  outdir[dimr_name+ '__' +dr_param_names[i]] = [dr_param_vals[i]]
-            return pd.DataFrame.from_dict(outdir)
-            #print(param_names)
-
-
-#logfile
-#out = open('../run.RF/logs/cross_validation.log','w')
-def plot_pr_curves(temp_estimators, X, y, abc_score, distance, out_idx, outdir):
-    colors = ['purple','red','blue','orange','cyan','green','pink','yellow','blueviolet']
-    fig, ax = plt.subplots()
-
-    for i in temp_estimators:
-        pipe = temp_estimators[i]['clf']
-        #reduced = pipe.named_steps.SelectKBest.transform(X)
-        if 'RandomForest' in i:
-            label = 'Random Forest'
-            ypred = pipe.named_steps.RandomForestClassifier.predict_proba(X)
-            precision, recall, thresholds = precision_recall_curve(y, ypred[:,1])
-            ax.plot(recall, precision, color=colors[1], label=label)
-
-        if 'xgb' in i:
-            label = 'XGBoost'
-            ypred = pipe.named_steps['xgb'].predict_proba(X)
-            precision, recall, thresholds = precision_recall_curve(y, ypred[:,1])
-            ax.plot(recall, precision, color=colors[5], label=label)
-
-        if 'LogisticRegression' in i:
-            label = 'Logistic Regression'
-            ypred = pipe.named_steps.LogisticRegression.predict_proba(X)
-            precision, recall, thresholds = precision_recall_curve(y, ypred[:,1])
-            ax.plot(recall, precision, color=colors[4], label=label)
-
-    #add abc and distance
-    precision, recall, thresholds = precision_recall_curve(y, distance)
-    ax.plot(recall, precision, color='black', label='Lin Distance')
-
-    precision, recall, thresholds = precision_recall_curve(y, abc_score)
-    ax.plot(recall, precision, color='brown', label='ABC')
-
-    #add axis labels to plot
-    ax.set_title('Precision-Recall Curve')
-    ax.set_ylabel('Precision')
-    ax.set_xlabel('Recall')
-    ax.legend(loc='upper right')
-
-    plt.savefig(outdir+'pr_curve_'+str(out_idx)+'.png')
-
-
-#might need to add an option to save the figure witha specific name
-def plot_coefficients(classifier, feature_names, top_features=20):
-    coef = classifier.coef_.ravel()
-    top_positive_coefficients = np.argsort(coef)[-top_features:]
-    top_negative_coefficients = np.argsort(coef)[:top_features]
-    top_coefficients = np.hstack([top_negative_coefficients, top_positive_coefficients])
-    # create plot
-    plt.figure(figsize=(15, 5))
-    colors = ['red' if c < 0 else 'blue' for c in coef[top_coefficients]]
-    plt.bar(np.arange(2 * top_features), coef[top_coefficients], color=colors)
-    feature_names = np.array(feature_names)
-    plt.xticks(np.arange(0.3, 0.3 +2 * top_features), feature_names[top_coefficients], rotation=60, ha='right')
-    plt.tight_layout()
-    plt.savefig('../run.RF/data/top_'+str(top_features)+'_features.png')
-
-
-#X, y = load_digits(return_X_y=True)
-#print(np.isnan(y).any())
-#####################################
-# define the classifiers and params #
-#####################################
 
 #models = ['xgb', 'rf']
 models = ['xgb']
-#in this script we use diff params for bayescv
-#
-#models = {
-#    'xgb': xgb.XGBClassifier( 
-#      objective= 'binary:logistic',
-#      nthread=4,
-#    ),
-#    'rf':RandomForestClassifier(class_weight='balanced'),
-#    #'lr':LogisticRegression(solver='liblinear', class_weight="balanced"),
-#}
-#
-#params = {
-#    'xgb':{
-#      'n_estimators' : Integer(20, 100, 'uniform'),
-#      'max_depth' : Integer(1, 5, 'uniform'),
-#      'min_child_weight' : Real(0.1, 10, 'log-uniform'),
-#      'colsample_bytree' : Real(0.8, 1, 'uniform'),
-#      'subsample' : Real(0.5, 1, 'uniform'),
-#      'gamma': (1e-30, 0.00001, 'log-uniform')
-#    },   
-#    'rf':{'n_estimators': Integer(100,300),'min_samples_leaf':Integer(1,20),
-#      'max_depth': Integer(5, 12),
-#      'min_samples_split': Integer(2, 10)
-#    },
-#    #'lr':{'C':Real(1e-6,1e5, prior='log-uniform')},
-#}
-##
-#dim_reductions = {
-##    'NMF':NMF(max_iter=300),
-#    'SelectKBest':SelectKBest(chi2),
-##    'PCA':PCA(iterated_power=100),
-#}
-#
-#dimr_params = {
-##    'SelectKBest':{'k':Integer(1,50)},
-##    'PCA':{'n_components':Integer(1,50)},
-##    'NMF':{'n_components':Integer(1,50)},
-#    'SelectKBest':['passthrough'],
-#}
-#
 
-def RandomGroupKFold_split(groups, n, seed=None):  # noqa: N802
-    """
-    Random analogous of sklearn.model_selection.GroupKFold.split.
-
-    :return: list of (train, test) indices
-    """
-    groups = pd.Series(groups)
-    ix = np.arange(len(groups))
-    unique = np.unique(groups)
-    np.random.RandomState(seed).shuffle(unique)
-    result = []
-    for split in np.array_split(unique, n):
-        mask = groups.isin(split)
-        train, test = ix[~mask], ix[mask]
-        result.append((train, test))
-
-    return result
 
 class Objective:
   def __init__(self, X, y, classifier, custom_fold, study_name_prefix, scoring = 'map', cls_weight = 100):
@@ -586,11 +312,10 @@ class OuterFolds:
         study = optuna.load_study(study_name=study_name, storage=self.storage) 
         print("Loaded study  %s with  %d trials." % (study_name, len(study.trials)))
         X_split = pd.read_csv(self.outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
-        X_split = X_split.drop(columns = ['ABC.id'])
         y_split = pd.read_csv(self.outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
-        y_split = y_split['Significant']
         group_split = pd.read_csv(self.outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0).reset_index(drop=True)
         scaler_dump = self.outdir +'/'+self.study_name_prefix+'.scaler.'+str(outer_index)+'.gz'
+
         X_split, y_split, group_split = self.preprocess(X_split, y_split, group_split, scaler_dump=scaler_dump)
         counter = Counter(y_split)
         estimate = counter[0] / counter[1]
@@ -626,13 +351,13 @@ class OuterFolds:
         if (classifier == 'rf'):
             params['num_boost_round'] = 1
         X_train = pd.read_csv(self.outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
-        X_train = X_train.drop(columns = ['ABC.id'])
         y_train = pd.read_csv(self.outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', sep='\t', index_col=0)
-        y_train = y_train['Significant']
         scaler_dump = self.outdir +'/'+self.study_name_prefix+'.scaler.'+str(outer_index)+'.gz'
         X_train, y_train, group_train =  self.preprocess(X_train, y_train, group=None, scaler_dump=scaler_dump)
-        dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
-        dtrain = xgb.DMatrix(dtrainfilename)
+        dtrain = xgb.DMatrix(X_train)
+
+        #dtrainfilename = outdir +'/'+'dtrain.'+str(outer_index)+'.data'
+        #dtrain = xgb.DMatrix(dtrainfilename)
 
         print("  Params: ")
         for key, value in params.items():
@@ -692,9 +417,9 @@ class OuterFolds:
             X_split.to_csv(self.outdir +'/'+new_study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt', sep='\t')
             X_split = X_split.drop(columns = ['ABC.id'])
 
-            os.symlink(self.outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt', self.outdir +'/'+new_study_name_prefix+'.ysplit.'+str(outer_index)+'.txt')
-            os.symlink(self.outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt', self.outdir +'/'+new_study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt')
-            os.symlink(self.outdir +'/'+self.study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt', self.outdir +'/'+new_study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt')
+            os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt'), self.outdir +'/'+new_study_name_prefix+'.ysplit.'+str(outer_index)+'.txt')
+            os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt'), self.outdir +'/'+new_study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt')
+            os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt'), self.outdir +'/'+new_study_name_prefix+'.ABCidsplit.'+str(outer_index)+'.txt')
        
             src_path = self.outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt'
             #X_test = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
@@ -702,9 +427,9 @@ class OuterFolds:
             X_test = X_test.drop(columns = features_to_drop)
             X_test.to_csv(self.outdir +'/'+new_study_name_prefix+'.Xtest.'+str(outer_index)+'.txt', sep='\t')
             X_test = X_test.drop(columns = ['ABC.id'])
-            os.symlink(self.outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt', self.outdir +'/'+new_study_name_prefix+'.ytest.'+str(outer_index)+'.txt')
-            os.symlink(self.outdir +'/'+self.study_name_prefix+'.grouptest.'+str(outer_index)+'.txt', self.outdir +'/'+new_study_name_prefix+'.grouptest.'+str(outer_index)+'.txt')
-            os.symlink(self.outdir +'/'+self.study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt', self.outdir +'/'+new_study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt')
+            os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt'), self.outdir +'/'+new_study_name_prefix+'.ytest.'+str(outer_index)+'.txt')
+            os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.grouptest.'+str(outer_index)+'.txt'), self.outdir +'/'+new_study_name_prefix+'.grouptest.'+str(outer_index)+'.txt')
+            os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt'), self.outdir +'/'+new_study_name_prefix+'.ABCidtest.'+str(outer_index)+'.txt')
  
 
 
@@ -906,12 +631,9 @@ if __name__ == "__main__":
       ActivityFeatures = features_gasperini[['ABC.id', 'normalized_h3K27ac', 'normalized_h3K4me3', 'normalized_h3K27me3', 'normalized_dhs', 'activity_base', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile', 'TargetGeneIsExpressed', 'distance', 'H3K27ac.RPKM.quantile.TSS1Kb', 'H3K4me3.RPKM.quantile.TSS1Kb', 'H3K27me3.RPKM.quantile.TSS1Kb']].copy()
       ActivityFeatures = ActivityFeatures.dropna()
       ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
-      hicfeatures = features_gasperini[['hic_contact', 'hic_contact_pl_scaled_adj', 'ABC.Score.Numerator', 'ABC.Score']].copy()
-      #hicfeatures = features_gasperini[['hic_contact', 'ABC.Score']].copy()
-      hicfeatures['ABC.Score.Denominator'] = features_gasperini['ABC.Score.Numerator']/features_gasperini['ABC.Score']
-      hicfeatures['ABC.denominator-numerator'] = hicfeatures['ABC.Score.Denominator'] - hicfeatures['ABC.Score.Numerator']
+      hicfeatures = features_gasperini[['hic_contact', 'hic_contact_pl_scaled_adj', 'ABC.Score.Denominator', 'ABC.Score.Numerator', 'ABC.Score']].copy()
+      hicfeatures['ABC.rest'] = hicfeatures['ABC.Score.Denominator'] - hicfeatures['ABC.Score.Numerator']
       hicfeatures = hicfeatures.dropna()
-      #hicfeatures['hic_contact'] = np.log1p(hicfeatures['hic_contact'])
       TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)').copy()
       TFfeatures = TFfeatures.dropna()
       cobindingfeatures = features_gasperini.filter(regex=r'_co$').copy()
