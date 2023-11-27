@@ -17,6 +17,8 @@ from optuna.pruners import MedianPruner
 from optuna.integration import XGBoostPruningCallback
 from collections import Counter
 from BorutaShap import BorutaShap
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 RANDOM_SEED = 42
 
@@ -45,7 +47,7 @@ models = ['xgb']
 
 
 class Objective:
-  def __init__(self, X, y, classifier, custom_fold, study_name_prefix, scoring = 'map', cls_weight = 100):
+  def __init__(self, X, y, classifier, custom_fold, study_name_prefix, scoring = 'map', cls_weight = ''):
     # Hold this implementation specific arguments as the fields of the class.
     self.X = X 
     self.y = y
@@ -55,7 +57,7 @@ class Objective:
     self.scoring = scoring
     self.cls_weight = cls_weight
     self.study_name_prefix = study_name_prefix
-
+   
 
   def __call__(self, trial):
     # Calculate an objective value by using the extra arguments.
@@ -69,30 +71,33 @@ class Objective:
           # use exact for small featuresset.
           "tree_method": "auto",
           # n_estimator
-          "num_boost_round": trial.suggest_int("num_boost_round", 400, 500),
+          "num_boost_round": trial.suggest_int("num_boost_round", 200, 400),
           # defines booster
           "booster": trial.suggest_categorical("booster", ["gbtree"]),
           #"booster": trial.suggest_categorical("booster", ["dart"]),
           # maximum depth of the tree, signifies complexity of the tree.
           #"max_depth": trial.suggest_int("max_depth", 3, 4),
-          "max_depth": 4,
+          "max_depth": 3,
           # minimum child weight, larger the term more conservative the tree.
-          "min_child_weight": trial.suggest_int("min_child_weight", 8, 16),
+          "min_child_weight": trial.suggest_int("min_child_weight", 10, 20),
+          #"min_child_weight": 18,
           # learning rate
           #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
-          "eta": 0.005,
+          "eta": 0.01,
           # sampling ratio for training features.
-          "subsample": trial.suggest_float("subsample", 0.7, 0.8),
+          "subsample": trial.suggest_float("subsample", 0.4, 0.8),
+          #"subsample": 0.8,
           # sampling according to each tree.
-          "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 0.7),
+          "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 0.7),
+          #"colsample_bytree": 0.52,
           # L2 regularization weight.
           #"lambda": trial.suggest_float("lambda", 1, 3, log=True),
           # L1 regularization weight.
           #"alpha": trial.suggest_float("alpha", 1e-9, 0.2, log=True),
           # defines how selective algorithm is.
-          "gamma": trial.suggest_float("gamma", 40, 55),
+          "gamma": trial.suggest_float("gamma", 20, 30),
           #"grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
-          "scale_pos_weight": np.sqrt(self.cls_weight),
+          "scale_pos_weight": self.cls_weight,
           "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
           "max_delta_step" : 1,
       }
@@ -101,34 +106,6 @@ class Objective:
           #param["normalize_type"] = trial.suggest_categorical("normalize_type", ["tree", "forest"])
           param["rate_drop"] = trial.suggest_float("rate_drop", 1e-8, 0.5, log=True)
           param["skip_drop"] = trial.suggest_float("skip_drop", 0.5, 1, log=True)
-    elif self.classifier == "rf":
-      param = { 
-          "verbosity": 0,
-          "random_state" : RANDOM_SEED,
-          "objective": "binary:logistic",
-          # use exact for small featuresset.
-          "tree_method": "auto",
-          # num_parallel_tree
-          "num_parallel_tree": trial.suggest_int("num_parallel_tree", 50, 300),
-          # maximum depth of the tree, signifies complexity of the tree.
-          "max_depth": trial.suggest_int("max_depth", 2, 10),
-          # minimum child weight, larger the term more conservative the tree.
-          "min_child_weight": trial.suggest_int("min_child_weight", 10, 20),
-          # learning rate
-          #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
-          "eta": 0.05,
-          # sampling ratio for training features.
-          "subsample": trial.suggest_float("subsample", 0.4, 0.8),
-          # sampling by node
-          "colsample_bynode": trial.suggest_float("colsample_bynode", 0.5, 0.99),
-          "scale_pos_weight": np.sqrt(self.cls_weight),
-          "eval_metric" : 'map',
-          "max_delta_step" : 1,
-      }
-      # booster is set to "gbtree"
-      param['booster'] = "gbtree"
-      # num_boost_round(n_estimator) is set to 1 to make it RF instead of boosting. 
-      param['num_boost_round'] = 1
 
     # set up cross-validation
     idx = 0
@@ -188,8 +165,10 @@ class Objective:
     #cv_results = xgb.cv(param, self.dtrain, folds=self.custom_fold, early_stopping_rounds=100, callbacks=[pruning_callback])
     #trial.set_user_attr("n_estimators", len())
     print(param['scale_pos_weight'])
-    print(np.sqrt(self.cls_weight))
-    trial.set_user_attr("scale_pos_weight", np.sqrt(self.cls_weight))
+    print(self.cls_weight)
+    trial.set_user_attr("scale_pos_weight", self.cls_weight)
+    trial.set_user_attr("eta", param['eta'])
+    trial.set_user_attr("max_depth", param['max_depth'])
 
     best_iteration = xgb_clf_cv.best_iteration
     print('best_iteration: ' + str(best_iteration))
@@ -251,8 +230,8 @@ class OuterFolds:
             #self.X_splits[outer_index] = X_split
             #self.y_splits[outer_index] = y_split
             #self.group_splits[outer_index] = group_train
-            GeneID_split = X_split['GeneSymbol']
-            GeneID_split.to_csv(self.outdir +'/'+self.study_name_prefix+'.GeneIDsplit.'+str(outer_index)+'.txt', sep='\t')
+            ID_split = X_split['GeneSymbol']
+            ID_split.to_csv(self.outdir +'/'+self.study_name_prefix+'.IDsplit.'+str(outer_index)+'.txt', sep='\t')
             X_split = X_split.drop(columns = ['GeneSymbol'])
 
             X_test = X.iloc[test_idx,:].copy()
@@ -266,8 +245,8 @@ class OuterFolds:
             #self.X_tests[outer_index] = X_test
             #self.y_tests[outer_index] = y_test
             #self.group_tests[outer_index] = group_test
-            GeneID_test = X_test['GeneSymbol']
-            GeneID_test.to_csv(self.outdir +'/'+self.study_name_prefix+'.GeneIDtest.'+str(outer_index)+'.txt', sep='\t')
+            ID_test = X_test['GeneSymbol']
+            ID_test.to_csv(self.outdir +'/'+self.study_name_prefix+'.IDtest.'+str(outer_index)+'.txt', sep='\t')
             X_test = X_test.drop(columns = ['GeneSymbol'])
 
             outer_index=outer_index+1
@@ -275,12 +254,14 @@ class OuterFolds:
 
     # Set up outer folds for testing 
     def create_studies(self, study_name_prefix, nfold):
+        n_train_iter=100
         for outer_index in range(nfold):
             #get indices for outersplit
             storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
             for model in models: 
                 print("\nCreating Optuna for %s outer fold %d." % (model, outer_index), flush=True)
-                pruner = optuna.pruners.MedianPruner(n_warmup_steps=5)
+                pruner = optuna.pruners.HyperbandPruner(min_resource=1, max_resource=n_train_iter, reduction_factor=3)
+                #pruner = optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=30, interval_steps=10)
                 # xgb study
                 study_name = study_name_prefix+'.'+model+"."+str(outer_index)
                 #optuna.delete_study(study_name=study_name, storage=storage) # if there is existing study remove.
@@ -325,7 +306,7 @@ class OuterFolds:
         X_split, y_split, group_split = self.preprocess(X_split, y_split, group_split, scaler_dump=scaler_dump)
         counter = Counter(y_split)
         estimate = counter[0] / counter[1]
-        cls_weight = (y_split.shape[0] - np.sum(y_split)) / np.sum(y_split)
+        cls_weight = np.sqrt((y_split.shape[0] - np.sum(y_split)) / np.sum(y_split))
         
         #run Optuna search with inner search CV on outer split data 
         inner_splits = StratifiedGroupKFold(n_splits=n_inner_fold, shuffle=True, random_state=RANDOM_SEED)
@@ -353,6 +334,8 @@ class OuterFolds:
 
         params = trial.params
         params['scale_pos_weight'] = trial.user_attrs["scale_pos_weight"]
+        params['eta'] = trial.user_attrs["eta"]
+        params['max_depth']=trial.user_attrs['max_depth']
         params['objective'] = "binary:logistic" 
         if (classifier == 'rf'):
             params['num_boost_round'] = 1
@@ -374,10 +357,9 @@ class OuterFolds:
           subsample=params['subsample'], 
           gamma=params['gamma'], 
           #lambda=params['lambda'], 
-          learning_rate=0.005, 
+          eta=params['eta'], 
+          max_depth=params['max_depth'],
           max_delta_step=1, 
-          #max_depth=params['max_depth'],
-          max_depth=4,
           min_child_weight=params['min_child_weight'],
           scale_pos_weight=params['scale_pos_weight'], 
           n_estimators=params['num_boost_round']
@@ -390,14 +372,16 @@ class OuterFolds:
                               percentile=80, pvalue=0.1)
         Feature_Selector.fit(X=X_train, y=y_train, n_trials=50, sample=True,
                    train_or_test = 'train', normalize=True, verbose=True)
-        fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(200, 50))
+        fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(400, 50))
         Feature_Selector.plot(which_features='all')
         plt.savefig(self.outdir+'/'+'boruta.'+self.study_name_prefix+'.'+str(outer_index)+'.pdf')
         plt.close()
         Feature_Selector.results_to_csv(filename=self.outdir+'/'+self.study_name_prefix+'.feature_importance.'+str(outer_index)+'.txt')
-        features_to_remove = pd.DataFrame({"features":Feature_Selector.features_to_remove})
-        print(features_to_remove)
-        features_to_remove.to_csv(self.outdir+'/'+self.study_name_prefix+'.features_to_remove.'+str(outer_index)+'.txt', index=False, sep='\t')
+        features_to_keep = pd.DataFrame({"features":Feature_Selector.Subset().columns.values})
+        features_to_keep.to_csv(self.outdir+'/'+self.study_name_prefix+'.features_to_keep.'+str(outer_index)+'.txt', index=False, sep='\t')
+        #features_to_remove = pd.DataFrame({"features":Feature_Selector.features_to_remove})
+        #print(features_to_remove)
+        #features_to_remove.to_csv(self.outdir+'/'+self.study_name_prefix+'.features_to_remove.'+str(outer_index)+'.txt', index=False, sep='\t')
 
 
 
@@ -406,15 +390,17 @@ class OuterFolds:
         new_study_name_prefix = self.study_name_prefix+'.2pass'
         featurenames = np.loadtxt(self.outdir+'/'+self.study_name_prefix+'.featurelabels.txt', skiprows=1, dtype='str')
         print(featurenames)
-        features_to_drop = featurenames
+        features_to_keep = []
         for outer_index in range(self.nfold):
-            features_to_drop_fold = np.loadtxt(self.outdir+'/'+self.study_name_prefix+'.features_to_remove.'+str(outer_index)+'.txt', skiprows=1, dtype='str')
-            print(features_to_drop_fold)
-            features_to_drop = np.intersect1d(features_to_drop, features_to_drop_fold)
+            features_to_keep_fold = np.loadtxt(self.outdir+'/'+self.study_name_prefix+'.features_to_keep.'+str(outer_index)+'.txt', skiprows=1, dtype='str')
+            print(features_to_keep_fold)
+            features_to_keep = np.union1d(features_to_keep, features_to_keep_fold)
+        print(features_to_keep)
+        #features_to_keep = np.append(features_to_keep, ['ABC.Score', 'ABC.Score.Numerator'])
+        features_to_keep = np.append(features_to_keep, ['GeneSymbol'])
+        features_to_drop = np.setdiff1d(featurenames, features_to_keep)
         print(features_to_drop)
-        features_to_drop = np.append(features_to_drop, ['ABC.Score', 'ABC.Score.Numerator'])
-        print(features_to_drop)
-        np.savetxt(self.outdir+'/'+new_study_name_prefix+'.features_dropped.txt', np.transpose([features_to_drop]), fmt="%s") 
+        np.savetxt(self.outdir+'/'+new_study_name_prefix+'.features_dropped.txt', np.transpose([features_to_keep]), fmt="%s") 
         for outer_index in range(self.nfold):
             src_path = self.outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt'
             #X_split = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
@@ -425,7 +411,7 @@ class OuterFolds:
 
             os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.ysplit.'+str(outer_index)+'.txt'), self.outdir +'/'+new_study_name_prefix+'.ysplit.'+str(outer_index)+'.txt')
             os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt'), self.outdir +'/'+new_study_name_prefix+'.groupsplit.'+str(outer_index)+'.txt')
-            os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.GeneIDsplit.'+str(outer_index)+'.txt'), self.outdir +'/'+new_study_name_prefix+'.GeneIDsplit.'+str(outer_index)+'.txt')
+            os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.IDsplit.'+str(outer_index)+'.txt'), self.outdir +'/'+new_study_name_prefix+'.IDsplit.'+str(outer_index)+'.txt')
        
             src_path = self.outdir +'/'+self.study_name_prefix+'.Xtest.'+str(outer_index)+'.txt'
             #X_test = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
@@ -435,7 +421,7 @@ class OuterFolds:
             X_test = X_test.drop(columns = ['GeneSymbol'])
             os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.ytest.'+str(outer_index)+'.txt'), self.outdir +'/'+new_study_name_prefix+'.ytest.'+str(outer_index)+'.txt')
             os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.grouptest.'+str(outer_index)+'.txt'), self.outdir +'/'+new_study_name_prefix+'.grouptest.'+str(outer_index)+'.txt')
-            os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.GeneIDtest.'+str(outer_index)+'.txt'), self.outdir +'/'+new_study_name_prefix+'.GeneIDtest.'+str(outer_index)+'.txt')
+            os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.IDtest.'+str(outer_index)+'.txt'), self.outdir +'/'+new_study_name_prefix+'.IDtest.'+str(outer_index)+'.txt')
  
 
 
@@ -472,12 +458,15 @@ class OuterFolds:
                 #counter = Counter(y_split)
                 #estimate = counter[0] / counter[1]
                 #cls_weight = (y_split.shape[0] - np.sum(y_split)) / np.sum(y_split)
-                #params['scale_pos_weight'] = np.sqrt(cls_weight)
+                #params['scale_pos_weight'] = cls_weight
                 params['scale_pos_weight'] = trial.user_attrs["scale_pos_weight"]
                 params['objective'] = "binary:logistic" 
-                params['eta'] = 0.005
+                params['eta'] = trial.user_attrs['eta']
                 params['max_delta_step'] = 1
-                params['max_depth'] = 4
+                params['max_depth'] = trial.user_attrs['max_depth']
+                print("max_depth:" )
+                print(params['max_depth'])
+
                 if (classifier == 'rf'):
                     params['num_boost_round'] = 1
 
@@ -569,6 +558,16 @@ def DR_NMF_features(TFmatrix):
     H = nmf_model.components_
     Hdf = pd.DataFrame(H, columns=TFmatrix.columns)
     Hdf.to_csv(outdir+'/'+study_name_prefix+'.TF.H.txt', index=False, sep='\t')
+
+    # heatmap for NMF features.
+    sns.set()
+    fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(400, 100))
+    hm = sns.heatmap(data = Hdf)
+    plt.title("Heatmap Flight Data")
+    plt.savefig(outdir+'/'+study_name_prefix+'.heatmap.NMF.H.pdf')
+    plt.close(fig)
+    plt.show()
+
     return (Wdf)
 
 
@@ -653,11 +652,10 @@ if __name__ == "__main__":
 
 
       features_gasperini = data2
-      ActivityFeatures = features_gasperini[['GeneSymbol', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile', 'TargetGeneIsExpressed', 'H3K27ac.RPKM.quantile.TSS1Kb', 'H3K4me3.RPKM.quantile.TSS1Kb', 'H3K27me3.RPKM.quantile.TSS1Kb']].copy()
+      ActivityFeatures = features_gasperini[['GeneSymbol', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile', 'TargetGeneIsExpressed', 'H3K27ac.RPKM.quantile.TSS1Kb', 'H3K4me3.RPKM.quantile.TSS1Kb', 'H3K27me3.RPKM.quantile.TSS1Kb', 'Enhancer.count']].copy()
       ActivityFeatures = ActivityFeatures.dropna()
       ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
-      hicfeatures = features_gasperini[['ABC.Score.Denominator', 'ABC.Score.Numerator', 'ABC.Score']].copy()
-      hicfeatures['ABC.rest'] = hicfeatures['ABC.Score.Denominator'] - hicfeatures['ABC.Score.Numerator']
+      hicfeatures = features_gasperini[['ABC.Score.mean', 'ABC.Score.Numerator.sum', 'joined.ABC.sum', 'joined.ABC.max']].copy()
       hicfeatures = hicfeatures.dropna()
       TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)').copy()
       TFfeatures = TFfeatures.dropna()
@@ -692,7 +690,7 @@ if __name__ == "__main__":
       target = crisprfeatures['Significant'].astype(int)
       groups = groupfeatures
 
-      abc_score = features['ABC.Score'].values
+      #abc_score = features['ABC.Score'].values
 
       #features.drop(columns=['ABC.Score'], axis=1, inplace=True)
       featurelabels = pd.DataFrame({"features":features.columns})
