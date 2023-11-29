@@ -539,7 +539,7 @@ class OuterFolds:
 
 
 
-def DR_NMF_features(TFmatrix):
+def DR_NMF_features(TFmatrix, nmf_dump):
     n_components = 24
     init = "nndsvd"
     nmf_model = NMF(
@@ -551,7 +551,9 @@ def DR_NMF_features(TFmatrix):
         alpha_H=0.00005,
         l1_ratio=0.5,
     )
-    W = nmf_model.fit_transform(TFmatrix)
+    nmf_model.fit(TFmatrix)
+    joblib.dump(nmf_model, nmf_dump)
+    W = nmf_model.transform(TFmatrix)
     Wdf = pd.DataFrame(W, index=TFmatrix.index, columns =  ["TF_NMF_" + str(i+1) for i in range(n_components)])
     Wdf.to_csv(outdir+'/'+study_name_prefix+'.TF.W.txt', index=False, sep='\t')
     H = nmf_model.components_
@@ -662,7 +664,8 @@ if __name__ == "__main__":
       hicfeatures = hicfeatures.dropna()
       TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)').copy()
       TFfeatures = TFfeatures.dropna()
-      TF_nmf_reduced_features = DR_NMF_features(TFfeatures)
+      NMF_dump = outdir +'/'+study_name_prefix+'.NMF.gz'
+      TF_nmf_reduced_features = DR_NMF_features(TFfeatures, NMF_dump)
       cobindingfeatures = features_gasperini.filter(regex=r'_co$').copy()
       cobindingfeatures = cobindingfeatures.dropna()
       crisprfeatures = features_gasperini[['EffectSize', 'Significant', 'pValue' ]].copy()
