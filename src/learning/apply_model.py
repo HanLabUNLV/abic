@@ -35,19 +35,6 @@ tstart = time.time()
 pid = os.getpid()
 
 
-def DR_NMF_features(TFmatrix, nmf_dump, outdir, prefix):
-
-    nmf_model = joblib.load(nmf_dump)
-    W = nmf_model.transform(TFmatrix)
-    Wdf = pd.DataFrame(W, index=TFmatrix.index, columns =  ["TF_NMF_" + str(i+1) for i in range(nmf_model.n_components)])
-    Wdf.to_csv(outdir+'/'+prefix+'.TF.W.txt', index=False, sep='\t')
-    H = nmf_model.components_
-    Hdf = pd.DataFrame(H, columns=TFmatrix.columns)
-    Hdf.to_csv(outdir+'/'+prefix+'.TF.H.txt', index=False, sep='\t')
-    return (Wdf)
-
-
-
 
 
 # python src/apply_model.py  --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run --modelfile /data8/han_lab/mhan/abcd/data/trained_models/mira_data/save38667.xgb.0.json --scalerfile /data8/han_lab/mhan/abcd/run2/38667.scaler.0.gz --features /data8/han_lab/mhan/abcd/run2/38667.Xtest.0.txt --targets /data8/han_lab/mhan/abcd/run2/38667.ytest.0.txt --featurenames /data8/han_lab/mhan/abcd/run2/featurenames38667.xgb.0.txt
@@ -59,7 +46,6 @@ if __name__ == "__main__":
   parser.add_argument('--outdir', default='.', help="directory containing edgelist and vertices files")
   parser.add_argument('--chr', default='all', help="chromosome")
   parser.add_argument('--scalerfile', required=True, help="scaler dumped during training")
-  parser.add_argument('--NMFfile', required=True, help="NMF dumped during training")
   parser.add_argument('--modelfile', required=True, help="model saved after training in json file")
   parser.add_argument('--features', required=True, help="feature matrix ")
   parser.add_argument('--targets', help="target truth to compare for evaluation")
@@ -70,11 +56,11 @@ if __name__ == "__main__":
   chromosome = args.chr
   outdir = args.outdir
   scalerfile = args.scalerfile
-  NMFfile = args.NMFfile
   modelfile = args.modelfile
   features = args.features
   targets = args.targets
   prefix = Path(modelfile).stem
+  Path(outdir).mkdir(parents=True, exist_ok=True)
 
   filenamesuffix = ''
 
@@ -91,35 +77,16 @@ if __name__ == "__main__":
   ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
   hicfeatures = X_test[['hic_contact', 'ABC.Score.Numerator.sum', 'ABC.Score.rest']].copy()
   hicfeatures = hicfeatures.dropna()
-  TFfeatures = X_test.filter(regex='(_e)|(_TSS)').copy()
+  TFfeatures = X_test.filter(regex='(_e)|(_TSS)|(NMF)').copy()
   TFfeatures = TFfeatures.dropna()
-  TF_nmf_reduced_features = DR_NMF_features(TFfeatures, NMFfile, outdir, prefix)
-  cobindingfeatures = X_test.filter(regex=r'_co$').copy()
-  cobindingfeatures = cobindingfeatures.dropna()
-  crisprfeatures = X_test[['EffectSize', 'Significant', 'pValue' ]].copy()
-  crisprfeatures = crisprfeatures.dropna()
-  groupfeatures = X_test[['group']].copy()
 
   features = ActivityFeatures.copy()
   features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
   features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
-  features = pd.merge(features, TF_nmf_reduced_features, left_index=True, right_index=True)
-  features = pd.merge(features, cobindingfeatures, left_index=True, right_index=True)
-  features = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
-  data = pd.merge(features, groupfeatures, left_index=True, right_index=True)
+  data = features.copy()
   ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
   hicfeatures = data.iloc[:, ActivityFeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]]
   TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
-  TF_nmf_reduced_features = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]+TF_nmf_reduced_features.shape[1]]
-  cobindingfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]+TF_nmf_reduced_features.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]+TF_nmf_reduced_features.shape[1]+cobindingfeatures.shape[1]]
-  #crisprfeatures = data.iloc[:, -3:]
-  crisprfeatures = data[['EffectSize', 'Significant', 'pValue' ]]
-  groupfeatures = data[['group']]
-  f1 = set(list(features.columns))
-  #features = data.iloc[:, :data.shape[1]-3]
-  features = data.iloc[:, :data.shape[1]-crisprfeatures.shape[1]-groupfeatures.shape[1]]
-  f2 = set(list(features.columns))
-  groups = groupfeatures
   Xtest = features
 
 

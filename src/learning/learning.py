@@ -7,7 +7,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn import preprocessing
 from sklearn.model_selection import StratifiedGroupKFold, GroupKFold
-from sklearn.decomposition import NMF
 from sklearn.metrics import precision_recall_curve, auc, average_precision_score, balanced_accuracy_score, f1_score
 import pandas as pd
 import xgboost as xgb
@@ -46,13 +45,17 @@ def set_num_threads(num):
 models = ['xgb']
 
 
+
+
+
 class Objective:
-  def __init__(self, X, y, classifier, custom_fold, study_name_prefix, scoring = 'map', cls_weight = ''):
+  def __init__(self, X, y, model, params, custom_fold, study_name_prefix, scoring = 'map', cls_weight = ''):
     # Hold this implementation specific arguments as the fields of the class.
     self.X = X 
     self.y = y
     #self.dtrain = dtrain
-    self.classifier = classifier
+    self.model = model
+    self.params = params
     self.custom_fold = custom_fold
     self.scoring = scoring
     self.cls_weight = cls_weight
@@ -63,50 +66,97 @@ class Objective:
     # Calculate an objective value by using the extra arguments.
 
     param = {}
-    if self.classifier == "xgb":
-      param = { 
-          "verbosity": 0,
-          "random_state" : RANDOM_SEED,
-          "objective": "binary:logistic",
-          # use exact for small featuresset.
-          "tree_method": "auto",
-          # n_estimator
-          "num_boost_round": trial.suggest_int("num_boost_round", 50, 300),
-          # defines booster
-          "booster": trial.suggest_categorical("booster", ["gbtree"]),
-          #"booster": trial.suggest_categorical("booster", ["dart"]),
-          # maximum depth of the tree, signifies complexity of the tree.
-          "max_depth": 3,
-          #"max_depth": trial.suggest_int("max_depth", 3, 4),
-          # minimum child weight, larger the term more conservative the tree.
-          #"min_child_weight": 6,
-          "min_child_weight": trial.suggest_int("min_child_weight", 4, 8),
-          # learning rate
-          #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
-          "eta": 0.05,
-          # sampling ratio for training features.
-          #"subsample": 0.5,
-          "subsample": trial.suggest_float("subsample", 0.4, 0.6),
-          # sampling according to each tree.
-          #"colsample_bytree": 0.5,
-          "colsample_bytree": trial.suggest_float("colsample_bytree", 0.4, 0.6),
-          # L2 regularization weight.
-          #"lambda": 2,
-          "lambda": trial.suggest_float("lambda", 2, 3, log=True),
-          # L1 regularization weight.
-          "alpha": trial.suggest_float("alpha", 1e-9, 0.2, log=True),
-          # defines how selective algorithm is.
-          "gamma": trial.suggest_float("gamma", 13, 20),
-          #"grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
-          "scale_pos_weight": self.cls_weight,
-          "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
-          "max_delta_step" : 1,
-      }
-      if param["booster"] == "dart":
-          #param["sample_type"] = trial.suggest_categorical("sample_type", ["uniform", "weighted"])
-          #param["normalize_type"] = trial.suggest_categorical("normalize_type", ["tree", "forest"])
-          param["rate_drop"] = trial.suggest_float("rate_drop", 1e-8, 0.5, log=True)
-          param["skip_drop"] = trial.suggest_float("skip_drop", 0.5, 1, log=True)
+    param_all = {
+      "verbosity": 0,
+      "random_state" : RANDOM_SEED,
+      "objective": "binary:logistic",
+      # use exact for small featuresset.
+      "tree_method": "auto",
+      # n_estimator
+      "num_boost_round": trial.suggest_int("num_boost_round", 100, 500),
+      # defines booster
+      "booster": trial.suggest_categorical("booster", ["gbtree"]),
+      #"booster": trial.suggest_categorical("booster", ["dart"]),
+      # maximum depth of the tree, signifies complexity of the tree.
+      #"max_depth": trial.suggest_int("max_depth", 3, 4),
+      "max_depth": 4,
+      # minimum child weight, larger the term more conservative the tree.
+      "min_child_weight": trial.suggest_int("min_child_weight", 10, 25),
+      # learning rate
+      #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
+      "eta": 0.01,
+      # sampling ratio for training features.
+      "subsample": trial.suggest_float("subsample", 0.5, 0.95),
+      # sampling according to each tree.
+      "colsample_bytree": trial.suggest_float("colsample_bytree", 0.65, 0.95),
+      # L2 regularization weight.
+      #"lambda": trial.suggest_float("lambda", 1, 3, log=True),
+      # L1 regularization weight.
+      #"alpha": trial.suggest_float("alpha", 1e-9, 0.2, log=True),
+      # defines how selective algorithm is.
+      "gamma": trial.suggest_float("gamma", 5, 25),
+      #"grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
+      "scale_pos_weight": self.cls_weight,
+      "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
+      "max_delta_step" : 1,
+    }
+    param_atleast1 = {
+      "verbosity": 0,
+      "random_state" : RANDOM_SEED,
+      "objective": "binary:logistic",
+      # use exact for small featuresset.
+      "tree_method": "auto",
+      # n_estimator
+      "num_boost_round": trial.suggest_int("num_boost_round", 50, 300),
+      # defines booster
+      "booster": trial.suggest_categorical("booster", ["gbtree"]),
+      #"booster": trial.suggest_categorical("booster", ["dart"]),
+      # maximum depth of the tree, signifies complexity of the tree.
+      "max_depth": 3,
+      #"max_depth": trial.suggest_int("max_depth", 3, 4),
+      # minimum child weight, larger the term more conservative the tree.
+      #"min_child_weight": 6,
+      "min_child_weight": trial.suggest_int("min_child_weight", 4, 8),
+      # learning rate
+      #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
+      "eta": 0.05,
+      # sampling ratio for training features.
+      #"subsample": 0.5,
+      "subsample": trial.suggest_float("subsample", 0.4, 0.6),
+      # sampling according to each tree.
+      #"colsample_bytree": 0.5,
+      "colsample_bytree": trial.suggest_float("colsample_bytree", 0.4, 0.6),
+      # L2 regularization weight.
+      #"lambda": 2,
+      "lambda": trial.suggest_float("lambda", 2, 3, log=True),
+      # L1 regularization weight.
+      "alpha": trial.suggest_float("alpha", 1e-9, 0.2, log=True),
+      # defines how selective algorithm is.
+      "gamma": trial.suggest_float("gamma", 13, 20),
+      #"grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
+      "scale_pos_weight": self.cls_weight,
+      "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
+      "max_delta_step" : 1,
+    }
+    param_gene = {
+    }
+
+
+    if self.params == "xgb.all":
+      param = param_all 
+    elif self.params == "xgb.atleast1":
+      param = param_atleast1
+    elif self.params == "xgb.gene":
+      param = param_gene
+    else:
+      print("model params not defined")
+      quit() 
+      
+    if param["booster"] == "dart":
+      #param["sample_type"] = trial.suggest_categorical("sample_type", ["uniform", "weighted"])
+      #param["normalize_type"] = trial.suggest_categorical("normalize_type", ["tree", "forest"])
+      param["rate_drop"] = trial.suggest_float("rate_drop", 1e-8, 0.5, log=True)
+      param["skip_drop"] = trial.suggest_float("skip_drop", 0.5, 1, log=True)
 
     # set up cross-validation
     idx = 0
@@ -282,7 +332,7 @@ class OuterFolds:
  
 
 
-    def optimize_hyperparams(self, model, outer_index, n_inner_fold=4, scoring='map'):
+    def optimize_hyperparams(self, model, params, outer_index, n_inner_fold=4, scoring='map'):
         #outer_index = 0
         #for classifier, folds in self.helper.studies.items():
             #print(classifier)
@@ -310,7 +360,7 @@ class OuterFolds:
         for split in inner_splits.split(X_split,y_split,group_split):
             train_idx, test_idx = split
             custom_fold.append((train_idx, test_idx))
-        study.optimize(Objective(X_split, y_split, model, custom_fold, study_name, scoring, cls_weight), n_trials=2000, timeout=600, n_jobs=1)  # will run  process to cover 2000 approx trials 
+        study.optimize(Objective(X_split, y_split, model, params, custom_fold, study_name, scoring, cls_weight), n_trials=2000, timeout=600, n_jobs=1)  # will run  process to cover 2000 approx trials 
      
 
     def feature_selection(self, model, outer_index):
@@ -539,41 +589,6 @@ class OuterFolds:
 
 
 
-def DR_NMF_features(TFmatrix, nmf_dump):
-    n_components = 24
-    init = "nndsvd"
-    nmf_model = NMF(
-        n_components=n_components,
-        random_state=1,
-        init=init,
-        beta_loss="frobenius",
-        alpha_W=0.00005,
-        alpha_H=0.00005,
-        l1_ratio=0.5,
-    )
-    nmf_model.fit(TFmatrix)
-    joblib.dump(nmf_model, nmf_dump)
-    W = nmf_model.transform(TFmatrix)
-    Wdf = pd.DataFrame(W, index=TFmatrix.index, columns =  ["TF_NMF_" + str(i+1) for i in range(n_components)])
-    Wdf.to_csv(outdir+'/'+study_name_prefix+'.TF.W.txt', index=False, sep='\t')
-    H = nmf_model.components_
-    Hdf = pd.DataFrame(H, columns=TFmatrix.columns)
-    Hdf.to_csv(outdir+'/'+study_name_prefix+'.TF.H.txt', index=False, sep='\t')
-
-    # heatmap for NMF features.
-    sns.set(font_scale=2)
-    fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(400, 100))
-    hm = sns.heatmap(data = Hdf)
-    plt.title("Heatmap NMF H")
-    plt.savefig(outdir+'/'+study_name_prefix+'.heatmap.NMF.H.pdf')
-    plt.close(fig)
-    plt.show()
-
-    return (Wdf)
-
-
-
-
 
 
 
@@ -582,6 +597,7 @@ def DR_NMF_features(TFmatrix, nmf_dump):
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--dir', required=True, help="directory containing edgelist and vertices files")
+  parser.add_argument('--infile', required=False, help="infile name")
   parser.add_argument('--outdir', default='.', help="directory containing edgelist and vertices files")
   parser.add_argument('--chr', default='all', help="chromosome")
   parser.add_argument("--port", required=True, help="postgres port for storage")
@@ -593,6 +609,7 @@ if __name__ == "__main__":
   parser.add_argument("--dropfeatures", action='store_true', help="drop features") # if on, drop features except selected 
   parser.add_argument("--test", action='store_true', help="gather test results based on tuned model") # if on, gather test results 
   parser.add_argument("--model", default='all', help="choose one of xgb, rf, lr only when optimizing")
+  parser.add_argument("--params", default='all', help="choose one of parameter sets only when optimizing")
   parser.add_argument("--outerfold", default='all', help="choose one of each outer fold only when optimizing")
   parser.add_argument("--e1", default=False, action='store_true', help="use only e1 pairs")
   parser.add_argument("--e1minus", default=False, action='store_true', help="use only e0e1 pairs")
@@ -603,6 +620,7 @@ if __name__ == "__main__":
   pid = os.getpid()
 
   base_directory = args.dir
+  infile = args.infile
   chromosome = args.chr
   outdir = args.outdir
   postgres_port = args.port
@@ -613,6 +631,7 @@ if __name__ == "__main__":
   run_feature_selection = args.fs
   run_drop_features = args.dropfeatures
   classifier = args.model
+  modelparams = args.params
   outerfold = args.outerfold
   run_test = args.test
 
@@ -642,7 +661,10 @@ if __name__ == "__main__":
       #import our data, then format it #
       ##################################
 
-      data2 = pd.read_csv(base_directory+'/Gasperini2019.at_scale.ABC.TF.erole.grouped.atleast1sig.train.txt',sep='\t', header=0)
+      if infile is None:
+        print( "--infile is required to run the --init process")
+        quit()
+      data2 = pd.read_csv(base_directory+'/'+infile,sep='\t', header=0)
       data2 = data2.loc[:,~data2.columns.str.match("Unnamed")]
       if (args.e1):
         data2 = data2.loc[data2['e1']==1,]
@@ -662,10 +684,8 @@ if __name__ == "__main__":
       hicfeatures = features_gasperini[['hic_contact', 'ABC.Score.Numerator.sum', 'ABC.Score.rest']].copy()
       #hicfeatures = features_gasperini[['hic_contact', 'hic_contact_pl_scaled_adj', 'ABC.Score.Numerator.sum', 'ABC.Score.rest']].copy()
       hicfeatures = hicfeatures.dropna()
-      TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)').copy()
+      TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)|(NMF)').copy()
       TFfeatures = TFfeatures.dropna()
-      NMF_dump = outdir +'/'+study_name_prefix+'.NMF.gz'
-      TF_nmf_reduced_features = DR_NMF_features(TFfeatures, NMF_dump)
       cobindingfeatures = features_gasperini.filter(regex=r'_co$').copy()
       cobindingfeatures = cobindingfeatures.dropna()
       crisprfeatures = features_gasperini[['EffectSize', 'Significant', 'pValue' ]].copy()
@@ -675,15 +695,13 @@ if __name__ == "__main__":
       features = ActivityFeatures.copy()
       features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
       features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
-      features = pd.merge(features, TF_nmf_reduced_features, left_index=True, right_index=True)
       features = pd.merge(features, cobindingfeatures, left_index=True, right_index=True)
       features = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
       data = pd.merge(features, groupfeatures, left_index=True, right_index=True)
       ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
       hicfeatures = data.iloc[:, ActivityFeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]]
       TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
-      TF_nmf_reduced_features = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]+TF_nmf_reduced_features.shape[1]]
-      cobindingfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]+TF_nmf_reduced_features.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]+TF_nmf_reduced_features.shape[1]+cobindingfeatures.shape[1]]
+      cobindingfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]+cobindingfeatures.shape[1]]
       #crisprfeatures = data.iloc[:, -3:]
       crisprfeatures = data[['EffectSize', 'Significant', 'pValue' ]]
       groupfeatures = data[['group']]
@@ -707,7 +725,7 @@ if __name__ == "__main__":
   elif (run_init2pass == True):
       outerFolds.create_studies(study_name_prefix+'.2pass', nfold)
   elif (run_optimize == True): 
-      outerFolds.optimize_hyperparams(classifier, outerfold)
+      outerFolds.optimize_hyperparams(classifier, modelparams, outerfold)
   elif (run_feature_selection == True): 
       outerFolds.feature_selection(classifier, outerfold)
   elif (run_drop_features == True):

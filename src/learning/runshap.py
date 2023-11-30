@@ -17,6 +17,9 @@ import glob
 import shap
 from BorutaShap import BorutaShap
 import json
+from pathlib import Path
+
+
 
 
 RANDOM_SEED = 42
@@ -35,7 +38,7 @@ if __name__ == "__main__":
   parser.add_argument('--studyname', required=True, help="studyname prefix for data files") 
   parser.add_argument('--outdir', default='.', help="directory to save shap results")
   parser.add_argument('--chr', default='all', help="chromosome")
-  parser.add_argument('--nfold', default='3', help="n outer fold")
+  parser.add_argument('--nfold', default=4, help="n outer fold")
 
   args=parser.parse_args()
   pid = os.getpid()
@@ -50,8 +53,12 @@ if __name__ == "__main__":
   features = ''
   targets = ''
   featurenames = ''
+  Path(outdir).mkdir(parents=True, exist_ok=True)
 
   filenamesuffix = ''
+
+  IDcolname = 'ABC.id'
+  #IDcolname = 'GeneSymbol'
 
   #################################
   #import our data, then format it #
@@ -67,11 +74,11 @@ if __name__ == "__main__":
   list_shap_values = []
   list_shap_interactions = []
   X_test = pd.read_csv(modeldir +'/'+studyname+'.Xtest.0.txt', sep='\t', index_col=0)
-  X_test = X_test.drop(columns = ['ABC.id'])
+  X_test = X_test.drop(columns = [IDcolname])
   print(X_test)
   X = pd.DataFrame(columns = X_test.columns)
   print(X)
-  ABCid = pd.DataFrame(columns = ['ABC.id'])
+  IDdf = pd.DataFrame(columns = ['ID'])
   y = pd.DataFrame(columns = ['Significant'])
 
   for outer_index in range(nfold):
@@ -79,16 +86,15 @@ if __name__ == "__main__":
       print(modelfile)
 
       X_test = pd.read_csv(modeldir +'/'+studyname+'.Xtest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
-      X_test = X_test.drop(columns = ['ABC.id'])
+      X_test = X_test.drop(columns = [IDcolname])
       y_test = pd.read_csv(modeldir +'/'+studyname+'.ytest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
-      ABCid_test = pd.read_csv(modeldir +'/'+studyname+'.ABCidtest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+      IDdf_test = pd.read_csv(modeldir +'/'+studyname+'.IDtest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
       y = pd.concat([y, y_test])
       y_test = y_test['Significant']
       print(y_test)
       print(str(sum(y_test))+'/'+str(len(y_test)))
 
-      dtestfilename = modeldir +'/'+'dtest.'+str(outer_index)+'.data'
-      dtest = xgb.DMatrix(dtestfilename)
+      
 
       # load model
       xgb_clf_tuned_2 = xgb.Booster()
@@ -103,7 +109,7 @@ if __name__ == "__main__":
       X_test = X_test.reindex(columns = featurenames['features'])
       print(X_test)
       X = pd.concat([X, X_test])
-      ABCid = pd.concat([ABCid, ABCid_test])
+      IDdf = pd.concat([IDdf, IDdf_test])
       # load preprocessor 
       #scaler = joblib.load(scalerfile)
       #cols = X_test.columns
@@ -172,6 +178,8 @@ if __name__ == "__main__":
       features_to_remove.to_csv(outdir+'/'+'features_to_remove.'+str(outer_index)+'.txt', index=False, sep='\t')
 
 
+      dtest = xgb.DMatrix(X_test)
+
       # SHAP values
       shap_values = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration, pred_contribs=True)
       print(shap_values)
@@ -185,10 +193,10 @@ if __name__ == "__main__":
       list_shap_interactions.append(shap_interactions)
 
 
-  X.insert(0, "ABC.id", ABCid['ABC.id'])
+  X.insert(0, "ID", IDdf['ID'])
   X.to_csv(outdir+'/X.'+studyname+'.txt', sep='\t') 
-  X = X.drop(columns = ['ABC.id'])
-  ABCid.to_csv(outdir+'/ABCid.'+studyname+'.txt', sep='\t') 
+  X = X.drop(columns = ["ID"])
+  IDdf.to_csv(outdir+'/ID.'+studyname+'.txt', sep='\t') 
 
   importance_values = pd.DataFrame(columns = ['feature', 'fscore'])
   for i in range(nfold):
@@ -204,9 +212,9 @@ if __name__ == "__main__":
   print(shap_values)
   print(shap_values.shape)
   print(shap_pandas)
-  shap_pandas.insert(0, "ABC.id", ABCid['ABC.id'])
+  shap_pandas.insert(0, "ID", IDdf['ID'])
   shap_pandas.to_csv(outdir+'/shap_values.'+studyname+'.txt', sep='\t')
-  shap_pandas = shap_pandas.drop(columns = ['ABC.id'])
+  shap_pandas = shap_pandas.drop(columns = ['ID'])
 
   # summary plot
   fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
@@ -233,6 +241,8 @@ if __name__ == "__main__":
       plt.cla()
       fig.clf()
       plt.close(fig)
+
+
 
  
   # interpret by contact
