@@ -7,6 +7,12 @@ Gasperini_enhancer = pd.read_csv(data_dir+"Gasperini2019.enhancer.ABC.overlap.be
 Gasperini_TSS = pd.read_csv(data_dir+"Gasperini2019.TSS.ABC.overlap.bed", sep='\t')
 Gasperini_atscale = pd.read_csv(data_dir+"Gasperini2019.at_scale_screen.cand_enhancer_x_exprsd_genes.200503.csv")
 ABC = pd.read_csv(data_dir+"ABC.EnhancerPredictionsAllPutative.txt", sep='\t')
+ABC_by_gene = ABC.groupby('TargetGene')
+ABC['Enhancer.count'] = ABC_by_gene[['ABC.Score']].transform('count')
+ABC['ABC.Score.mean'] = ABC_by_gene[['ABC.Score']].transform('mean')
+ABC['ABC.Score.Numerator.sum'] = ABC_by_gene[['ABC.Score.Numerator']].transform('sum')
+ABC['ABC.Score.rest'] = ABC['ABC.Score.Numerator.sum'] - ABC['ABC.Score.Numerator']
+
 
 new = Gasperini_atscale["name"].str.split(":", n=1, expand=True)
 Gasperini_atscale["enhancerID"]= new[0]
@@ -16,10 +22,12 @@ ABC_enhancer = pd.read_csv(data_dir+"EnhancerList.txt", sep="\t")
 ABC_enhancer = ABC_enhancer.loc[:,['chr','start','end','name','class', 'normalized_h3K27ac', 'normalized_dhs', 'activity_base']]
 ABC_enhancer["ABC.id"] = ABC_enhancer['chr']+":"+ABC_enhancer['start'].astype(str)+"-"+ABC_enhancer['end'].astype(str)
 ABC_enhancer_H3K4me3 = pd.read_csv(data_dir+"EnhancerList.H3K4me3.txt", sep="\t")
+ABC_enhancer_H3K4me3.rename({'normalized_h3K27ac': 'normalized_h3K4me3'}, axis=1, inplace=True)
 ABC_enhancer_H3K4me3 = ABC_enhancer_H3K4me3.loc[:,['chr','start','end','normalized_h3K4me3']]
 ABC_enhancer_H3K4me3["ABC.id"] = ABC_enhancer_H3K4me3['chr']+":"+ABC_enhancer_H3K4me3['start'].astype(str)+"-"+ABC_enhancer_H3K4me3['end'].astype(str)
 ABC_enhancer_H3K4me3.drop(columns=['chr','start','end'], axis=1, inplace=True)
 ABC_enhancer_H3K27me3 = pd.read_csv(data_dir+"EnhancerList.H3K27me3.txt", sep="\t")
+ABC_enhancer_H3K27me3.rename({'normalized_h3K27ac': 'normalized_h3K27me3'}, axis=1, inplace=True)
 ABC_enhancer_H3K27me3 = ABC_enhancer_H3K27me3.loc[:,['chr','start','end','normalized_h3K27me3']]
 ABC_enhancer_H3K27me3["ABC.id"] = ABC_enhancer_H3K27me3['chr']+":"+ABC_enhancer_H3K27me3['start'].astype(str)+"-"+ABC_enhancer_H3K27me3['end'].astype(str)
 ABC_enhancer_H3K27me3.drop(columns=['chr','start','end'], axis=1, inplace=True)
@@ -41,8 +49,10 @@ Gasperini_atscale2.to_csv(data_dir+"Gasperini2019.at_scale2.txt", sep='\t')
 ABC_gene = pd.read_csv(data_dir+"GeneList.txt", sep="\t")
 ABC_gene = ABC_gene.loc[:,['name','H3K27ac.RPKM.quantile.TSS1Kb']]
 ABC_gene_H3K4me3 = pd.read_csv(data_dir+"GeneList.H3K4me3.txt", sep="\t")
+ABC_gene_H3K4me3.rename({'H3K27ac.RPKM.quantile.TSS1Kb': 'H3K4me3.RPKM.quantile.TSS1Kb'}, axis=1, inplace=True)
 ABC_gene_H3K4me3 = ABC_gene_H3K4me3.loc[:,['name','H3K4me3.RPKM.quantile.TSS1Kb']]
 ABC_gene_H3K27me3 = pd.read_csv(data_dir+"GeneList.H3K27me3.txt", sep="\t")
+ABC_gene_H3K27me3.rename({'H3K27ac.RPKM.quantile.TSS1Kb': 'H3K27me3.RPKM.quantile.TSS1Kb'}, axis=1, inplace=True)
 ABC_gene_H3K27me3 = ABC_gene_H3K27me3.loc[:,['name','H3K27me3.RPKM.quantile.TSS1Kb']]
 ABC = pd.merge(ABC, ABC_gene, left_on=["TargetGene"], right_on=["name"], suffixes=('', '_y'))
 ABC.drop(ABC.filter(regex='_y$').columns, axis=1, inplace=True)

@@ -38,17 +38,20 @@ bedtools intersect -wo -e -f 0.3 -F 0.3 -a $DATADIR/Gasperini2019.TSS.bed -b $TF
 # run groupbypos.py
 
 
-grep -v 'chr5' $DATADIR/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.txt | grep -v 'chr10' | grep -v 'chr15' | grep -v 'chr20' > $DATADIR/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.train.txt
 
-head -n 1 $DATADIR/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.train.txt > $DATADIR/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.test.txt
-grep 'chr5' $DATADIR/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.txt  >> $DATADIR/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.test.txt
-grep 'chr10' $DATADIR/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.txt  >> $DATADIR/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.test.txt 
-grep 'chr15' $DATADIR/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.txt  >> $DATADIR/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.test.txt
-grep 'chr20' $DATADIR/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.txt  >> $DATADIR/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.test.txt
+# generate train and test for all prediction
+grep -v 'chr5' $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.txt | grep -v 'chr10' | grep -v 'chr15' | grep -v 'chr20' > $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.train.txt
 
-awk -F"\t"  '{print $23}' $DATADIR/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.test.txt > $DATADIR/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.test.target.txt
+head -n 1 $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.train.txt > $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.test.txt
+grep 'chr5' $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.txt  >> $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.test.txt
+grep 'chr10' $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.txt  >> $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.test.txt 
+grep 'chr15' $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.txt  >> $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.test.txt
+grep 'chr20' $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.txt  >> $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.test.txt
+
+awk -F"\t"  '{print $23}' $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.test.txt > $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.test.target.txt
 
 
+# generate train and test for gene prediction
 grep -v 'chr5' $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.txt | grep -v 'chr10' | grep -v 'chr15' | grep -v 'chr20' > $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.train.txt
 
 head -n 1 $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.train.txt > $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.test.txt
@@ -57,5 +60,21 @@ grep 'chr10' $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.txt  >> $DATADIR/Gaspe
 grep 'chr15' $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.txt  >> $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.test.txt
 grep 'chr20' $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.txt  >> $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.test.txt
 
-awk -F"\t"  '{print $4}' $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.test.txt > $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.test.target.txt
+awk -F"\t"  '{print $7}' $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.test.txt > $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.test.target.txt
+
+
+
+
+# generate train and test for ep pair with atleast1sig  prediction
+grep -v 'chr4' $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.txt | grep -v 'chr8' | grep -v 'chr12' | grep -v 'chr16' | grep -v 'chr20' > $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.train.txt
+
+head -n 1 $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.train.txt > $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.test.txt
+grep 'chr4' $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.txt  >> $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.test.txt
+grep 'chr8' $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.txt  >> $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.test.txt 
+grep 'chr12' $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.txt  >> $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.test.txt
+grep 'chr16' $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.txt  >> $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.test.txt
+grep 'chr20' $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.txt  >> $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.test.txt
+
+awk -F"\t"  '{print $23}' $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.test.txt > $DATADIR/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.test.target.txt
+
 

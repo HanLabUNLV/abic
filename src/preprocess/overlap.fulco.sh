@@ -41,5 +41,5 @@ ln -s $ABCOUTDIR/Neighborhoods.H3K27me3/GeneList.txt ${DATADIR}/GeneList.H3K27me
 python src/preprocess/overlap.fulco.py 
 
 # generate target.txt
-awk -F"\t" '{print $793}' ${DATADIR}/Fulco2019.CRISPR.ABC.TF.cobinding.txt > ${DATADIR}/Fulco2019.CRISPR.ABC.TF.cobinding.target.txt
+awk -F"\t" '{print $576}' ${DATADIR}/Fulco2019.CRISPR.ABC.TF.NMF.txt > ${DATADIR}/Fulco2019.CRISPR.ABC.TF.NMF.target.txt
 #
