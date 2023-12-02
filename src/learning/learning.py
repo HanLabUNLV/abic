@@ -100,6 +100,7 @@ class Objective:
       "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
       "max_delta_step" : 1,
     }
+
     param_atleast1 = {
       "verbosity": 0,
       "random_state" : RANDOM_SEED,
@@ -138,7 +139,85 @@ class Objective:
       "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
       "max_delta_step" : 1,
     }
+
     param_gene = {
+    }
+    param_e1 = {
+      "verbosity": 0,
+      "random_state" : RANDOM_SEED,
+      "objective": "binary:logistic",
+      # use exact for small featuresset.
+      "tree_method": "auto",
+      # n_estimator
+      "num_boost_round": trial.suggest_int("num_boost_round", 50, 500),
+      # defines booster
+      "booster": trial.suggest_categorical("booster", ["gbtree"]),
+      #"booster": trial.suggest_categorical("booster", ["dart"]),
+      # maximum depth of the tree, signifies complexity of the tree.
+      "max_depth": 3,
+      #"max_depth": trial.suggest_int("max_depth", 3, 4),
+      # minimum child weight, larger the term more conservative the tree.
+      #"min_child_weight": 6,
+      "min_child_weight": trial.suggest_int("min_child_weight", 10, 25),
+      # learning rate
+      #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
+      "eta": 0.01,
+      # sampling ratio for training features.
+      #"subsample": 0.5,
+      "subsample": trial.suggest_float("subsample", 0.4, 0.8),
+      # sampling according to each tree.
+      #"colsample_bytree": 0.5,
+      "colsample_bytree": trial.suggest_float("colsample_bytree", 0.4, 0.8),
+      # L2 regularization weight.
+      #"lambda": 2,
+      "lambda": trial.suggest_float("lambda", 1, 3, log=True),
+      # L1 regularization weight.
+      "alpha": trial.suggest_float("alpha", 1e-9, 0.2, log=True),
+      # defines how selective algorithm is.
+      "gamma": trial.suggest_float("gamma", 13, 20),
+      #"grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
+      "scale_pos_weight": self.cls_weight,
+      "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
+      "max_delta_step" : 1,
+    }
+
+    param_e2 = {
+      "verbosity": 0,
+      "random_state" : RANDOM_SEED,
+      "objective": "binary:logistic",
+      # use exact for small featuresset.
+      "tree_method": "auto",
+      # n_estimator
+      "num_boost_round": trial.suggest_int("num_boost_round", 10, 500),
+      # defines booster
+      "booster": trial.suggest_categorical("booster", ["gbtree"]),
+      #"booster": trial.suggest_categorical("booster", ["dart"]),
+      # maximum depth of the tree, signifies complexity of the tree.
+      "max_depth": 3,
+      #"max_depth": trial.suggest_int("max_depth", 2,3),
+      # minimum child weight, larger the term more conservative the tree.
+      #"min_child_weight": 6,
+      "min_child_weight": trial.suggest_int("min_child_weight", 10, 20),
+      # learning rate
+      #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
+      "eta": 0.05,
+      # sampling ratio for training features.
+      #"subsample": 0.5,
+      "subsample": trial.suggest_float("subsample", 0.6, 0.9),
+      # sampling according to each tree.
+      #"colsample_bytree": 0.5,
+      "colsample_bytree": trial.suggest_float("colsample_bytree", 0.7, 0.9),
+      # L2 regularization weight.
+      #"lambda": 2,
+      "lambda": trial.suggest_float("lambda", 1, 5, log=True),
+      # L1 regularization weight.
+      "alpha": trial.suggest_float("alpha", 1e-9, 0.5, log=True),
+      # defines how selective algorithm is.
+      "gamma": trial.suggest_float("gamma", 8, 20),
+      #"grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
+      "scale_pos_weight": self.cls_weight,
+      "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
+      "max_delta_step" : 1,
     }
 
 
@@ -148,6 +227,10 @@ class Objective:
       param = param_atleast1
     elif self.params == "xgb.gene":
       param = param_gene
+    elif self.params == "xgb.e1":
+      param = param_e1
+    elif self.params == "xgb.e2":
+      param = param_e2
     else:
       print("model params not defined")
       quit() 
@@ -179,7 +262,7 @@ class Objective:
             xgb_clf_cv = xgb.train(params=param, dtrain=dtrain, 
                               num_boost_round=param['num_boost_round'],
                               evals=[(dtrain, "train"),(dtest, "validation")],
-                              early_stopping_rounds=50,
+                              early_stopping_rounds=300,
                               evals_result=evals_result,
                               callbacks=[pruning_callback]
                               )
@@ -187,7 +270,7 @@ class Objective:
             xgb_clf_cv = xgb.train(params=param, dtrain=dtrain, 
                               num_boost_round=param['num_boost_round'],
                               evals=[(dtrain, "train"),(dtest, "validation")],
-                              early_stopping_rounds=50,
+                              early_stopping_rounds=300,
                               evals_result=evals_result,
                               )
 
