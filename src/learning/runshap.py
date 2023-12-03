@@ -1,18 +1,12 @@
 import argparse
 import time, os
+import joblib
 os.environ["OMP_NUM_THREADS"] = "8" # export OMP_NUM_THREADS=8
 import numpy as np
 import matplotlib.pyplot as plt
-from skopt import BayesSearchCV
-from skopt.space import Real, Integer 
-from sklearn.pipeline import Pipeline
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.feature_selection import SelectKBest, chi2
-from sklearn.metrics import precision_recall_curve, balanced_accuracy_score, f1_score
 import pandas as pd
 import xgboost as xgb
 import optuna
-from collections import Counter
 import glob
 import shap
 from BorutaShap import BorutaShap
@@ -69,6 +63,7 @@ if __name__ == "__main__":
   outer_index = 0
   modelFilenamesList = glob.glob(modeldir+'/'+studyname+'.save*.json')
   configFilenamesList = glob.glob(modeldir+'/'+studyname+'.config*.json')
+  scalerFilenamesList = glob.glob(modeldir+'/'+studyname+'.scaler*.gz')
 
   list_importances = []
   list_shap_values = []
@@ -89,37 +84,69 @@ if __name__ == "__main__":
       X_test = X_test.drop(columns = [IDcolname])
       y_test = pd.read_csv(modeldir +'/'+studyname+'.ytest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
       IDdf_test = pd.read_csv(modeldir +'/'+studyname+'.IDtest.'+str(outer_index)+'.txt', sep='\t', index_col=0)
+
+      X = pd.concat([X, X_test])
       y = pd.concat([y, y_test])
-      y_test = y_test['Significant']
+      IDdf = pd.concat([IDdf, IDdf_test])
+      
+
+
+      # copied from applymodel start
+
+      # load preprocessor preprocess x_test 
+      scaler = joblib.load(scalerFilenamesList[outer_index])
+      features = scaler.get_feature_names_out()
+      print(features)
+      X_test = X_test.reindex(columns = scaler.get_feature_names_out())
+      X_test = pd.DataFrame(scaler.transform(X_test), columns = X_test.columns)
+      print(X_test.columns)
+
+      # preprocess y_test
+      y_test = y_test.loc[:,~y_test.columns.str.match("Unnamed")]
+      y_test = y_test['Significant'].astype(int)
       print(y_test)
       print(str(sum(y_test))+'/'+str(len(y_test)))
 
-      
+
+
 
       # load model
       xgb_clf_tuned_2 = xgb.Booster()
       xgb_clf_tuned_2.load_model(modelfile)    
+      print(xgb_clf_tuned_2)
       best_iteration = xgb_clf_tuned_2.best_iteration
+      print(best_iteration)
       lst_vars_in_model = xgb_clf_tuned_2.feature_names
+      print(lst_vars_in_model)
       featurenames = pd.DataFrame({"features":lst_vars_in_model})
       print(featurenames)
-
-      print(X_test)
-      # load featurenames we need
       X_test = X_test.reindex(columns = featurenames['features'])
-      print(X_test)
-      X = pd.concat([X, X_test])
-      IDdf = pd.concat([IDdf, IDdf_test])
-      # load preprocessor 
-      #scaler = joblib.load(scalerfile)
-      #cols = X_test.columns
-      #X_test = pd.DataFrame(scaler.transform(X_test), columns = cols)
+        
+     
+      dtest = xgb.DMatrix(X_test) 
+      y_pred_prob = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration)
+      print(y_pred_prob)
+      y_pred = [round(value) for value in y_pred_prob]
+      test_pd = pd.DataFrame({'y_pred':y_pred, 'y_prob':y_pred_prob}, index=y_test.index)
+      y_res = pd.merge(y_test, test_pd, left_index=True, right_index=True)
+      y_res.to_csv(outdir+'/shap_confusion.'+str(outer_index)+'.txt', index=False, sep='\t')    
+
+      # SHAP values
+      shap_values = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration, pred_contribs=True)
+      print(shap_values)
+      print(shap_values.shape)
+      list_shap_values.append(shap_values)
+
+      # SHAP interactions
+      shap_interactions = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration, pred_interactions=True)
+      print(shap_interactions)
+      print(shap_interactions.shape)
+      list_shap_interactions.append(shap_interactions)
 
 
+      # copied from apply model end
 
-      #y_pred_prob = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration)
-      #print(y_pred_prob)
-      #y_pred = [round(value) for value in y_pred_prob]
+
   
       fscore = xgb_clf_tuned_2.get_score( importance_type='total_gain')
       #print(fscore)
@@ -149,11 +176,11 @@ if __name__ == "__main__":
         colsample_bytree=float(params_dict['colsample_bytree']),
         subsample=float(params_dict['subsample']),
         gamma=float(params_dict['gamma']),
-        #lambda=params_dict['lambda'], 
-        learning_rate=float(0.01),
+        reg_alpha=float(params_dict['alpha']), 
+        reg_lambda=float(params_dict['lambda']), 
+        learning_rate=float(params_dict['eta']),
         max_delta_step=1,
-        #max_depth=params_dict['max_depth'],
-        max_depth=4,
+        max_depth=int(params_dict['max_depth']),
         min_child_weight=int(params_dict['min_child_weight']),
         scale_pos_weight=float(params_dict['scale_pos_weight']), 
         n_estimators=int(params_dict['num_trees']),
@@ -178,19 +205,6 @@ if __name__ == "__main__":
       features_to_remove.to_csv(outdir+'/'+'features_to_remove.'+str(outer_index)+'.txt', index=False, sep='\t')
 
 
-      dtest = xgb.DMatrix(X_test)
-
-      # SHAP values
-      shap_values = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration, pred_contribs=True)
-      print(shap_values)
-      print(shap_values.shape)
-      list_shap_values.append(shap_values)
-
-      # SHAP interactions
-      shap_interactions = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration, pred_interactions=True)
-      print(shap_interactions)
-      print(shap_interactions.shape)
-      list_shap_interactions.append(shap_interactions)
 
 
   X.insert(0, "ID", IDdf['ID'])
