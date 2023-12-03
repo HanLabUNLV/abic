@@ -9,8 +9,6 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn import preprocessing
 from sklearn.datasets import load_digits
 from sklearn.model_selection import GridSearchCV, train_test_split, StratifiedKFold, cross_val_score
-from skopt import BayesSearchCV
-from skopt.space import Real, Categorical, Integer 
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.decomposition import PCA, NMF
@@ -22,10 +20,6 @@ from sklearn.svm import LinearSVC, SVC
 from sklearn.linear_model import LogisticRegression
 import pandas as pd
 import xgboost as xgb
-import optuna
-from optuna import create_study, logging
-from optuna.pruners import MedianPruner
-from optuna.integration import XGBoostPruningCallback
 from collections import Counter
 from pathlib import Path
 
@@ -125,18 +119,7 @@ if __name__ == "__main__":
   X_test.to_csv(outdir+'/Xfeatures.'+prefix+'.txt', index=False, sep='\t')
   y_test.to_csv(outdir+'/ytarget.'+prefix+'.txt', index=False, sep='\t')
      
-  #for be in temp_estimators:
-  #    acc = temp_estimators[be]['test_f1']
-  #    if be not in best_estimators:
-  #        best_estimators[be] = temp_estimators[be]
-  #    elif best_estimators[be]['test_f1'] < acc:
-  #        best_estimators[be] = temp_estimators[be]
-  #    importances = temp_estimators[be]['importances']
-  #    if importances is not None:
-  #        pd.DataFrame(data=importances, index=feature_labels).to_csv('data/trained_models/mira_data/'+str(pid)+'.importance.'+be+'.'+str(evaluation.shape[0])+'.txt')
-           
-  #return the best performing model on test data
-  
+ 
   dtest = xgb.DMatrix(X_test) 
   y_pred_prob = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration)
   print(y_pred_prob)
