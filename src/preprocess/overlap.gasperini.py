@@ -51,7 +51,9 @@ data_dir = "data/Gasperini/"
 Gasperini_enhancer = pd.read_csv(data_dir+"Gasperini2019.enhancer.ABC.overlap.bed", sep='\t')
 Gasperini_TSS = pd.read_csv(data_dir+"Gasperini2019.TSS.ABC.overlap.bed", sep='\t')
 Gasperini_atscale = pd.read_csv(data_dir+"Gasperini2019.at_scale_screen.cand_enhancer_x_exprsd_genes.200503.csv")
-Gasperini_atscale['pValueAdjusted'] = Gasperini_atscale['pValueAdjusted'].fillna(1)
+#Gasperini_atscale['pValueAdjusted'] = Gasperini_atscale['pValueAdjusted'].fillna(1)
+Gasperini_atscale.dropna(subset=['pValueAdjusted'], inplace=True)
+
 ABC = pd.read_csv(data_dir+"ABC.EnhancerPredictionsAllPutative.txt", sep='\t')
 ABC_by_gene = ABC.groupby('TargetGene')
 ABC['Enhancer.count'] = ABC_by_gene[['ABC.Score']].transform('count')
