@@ -71,39 +71,37 @@ def validate_args(args):
 #cat chromosomes.txt | parallel python src/generate_networks.py --enhancers ./ABC_output/Neighborhoods/EnhancerList.txt --genes ./ABC_output/Neighborhoods/GeneList.txt --outdir . --threshold 0.0 --HiCdir raw_data/hic/5kb_resolution_intrachromosomal/ --hic_resolution 5000 --chromosomes {}
 
 
-
-def main():
-    start = time.time()
-    tmp = time.time()
-    parser = get_predict_argument_parser()
-    args = parser.parse_args()
-
-    validate_args(args)
-
-    if not os.path.exists(args.outdir):
-        os.makedirs(args.outdir)
-
-    write_params(args, os.path.join(args.outdir, "parameters.predict.txt"))
-
-    if args.chromosomes == "all":
-        chromosomes = set(genes['chr']).intersection(set(enhancers['chr'])) 
-        if not args.include_chrY:
-            chromosomes.discard('chrY')
-    else:
-        chromosomes = args.chromosomes.split(",")
-
-    for chromosome in chromosomes:
-      network = network_from_hic(chromosome, args)
-      print("network_from_hic :", time.time()-tmp)
-      print("total time :", time.time()-start)
-      network = network_from_gene_enhancer(chromosome, network, args)
-      print("network_from_gene_enhancer :", time.time()-tmp)
-      print("total time :", time.time()-start)
-      network = network_remove_hic(chromosome, network, args)
-      print("network_remove_hic :", time.time()-tmp)
-      print("total time :", time.time()-start)
-
-
 if __name__ == '__main__':
-    main()
- 
+
+  start = time.time()
+  tmp = time.time()
+  parser = get_predict_argument_parser()
+  args = parser.parse_args()
+
+  validate_args(args)
+
+  if not os.path.exists(args.outdir):
+      os.makedirs(args.outdir)
+
+  write_params(args, os.path.join(args.outdir, "parameters.predict.txt"))
+
+  if args.chromosomes == "all":
+      chromosomes = set(genes['chr']).intersection(set(enhancers['chr'])) 
+      if not args.include_chrY:
+          chromosomes.discard('chrY')
+  else:
+      chromosomes = args.chromosomes.split(",")
+
+  for chromosome in chromosomes:
+    network = network_from_hic(chromosome, args)
+    print("network_from_hic :", time.time()-tmp)
+    print("total time :", time.time()-start)
+    network = network_from_gene_enhancer(chromosome, network, args)
+    print("network_from_gene_enhancer :", time.time()-tmp)
+    print("total time :", time.time()-start)
+    network = network_remove_hic(chromosome, network, args)
+    print("network_remove_hic :", time.time()-tmp)
+    print("total time :", time.time()-start)
+
+
+

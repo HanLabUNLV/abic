@@ -222,21 +222,29 @@ def network_remove_hic(chromosome, edgelist_ep, args):
     hic_bins_occupied = set(edgelist_elements['source'].unique()) 
     vertices_hic_new = vertices_hic.loc[vertices_hic.index.isin(sorted(hic_bins_occupied))].copy()
     edgelist_hic_new = edgelist_hic.loc[edgelist_hic['source'].isin(hic_bins_occupied) & edgelist_hic['target'].isin(hic_bins_occupied)].copy()
-    edgelist_hic_new = edgelist_hic_new.loc[edgelist_hic_new['source']!=edgelist_hic_new['target']]
 
     t = time.time()
 
     print('connecting complete graphs based on within hic bin relationship..')
     first_of_pairs = list()
     second_of_pairs = list()
+    weights = list()
     for i, row in vertices_hic_new.iterrows():
+      # find all elements connected to hic bin i
       element_ids = edgelist_elements.loc[edgelist_elements['source'] == i,'target']
+      # create pairs from element list n choose 2
       pairs = list(itertools.combinations(element_ids, 2))
       if pairs:
         first_of_pairs.extend([x[0] for x in pairs])
         second_of_pairs.extend([x[1] for x in pairs])
+        # find diagonal hic value
+        weightval = edgelist_hic.loc[(edgelist_hic['source']== i ) & (edgelist_hic['target'] == i),'weight' ].to_list()
+        if len(weightval) == 0: 
+          weightval = [None]
+        weight_rep_arr = np.repeat(weightval, [len(pairs)], axis=0)
+        weights.extend(weight_rep_arr)
 
-    weights = np.repeat([1], [len(first_of_pairs)], axis=0)
+    #weights = np.repeat([1], [len(first_of_pairs)], axis=0)
     types = np.repeat(["within"], [len(first_of_pairs)], axis=0)
     #edgelist_elements_within = pd.DataFrame(data = {'source': first_of_pairs, 'target': second_of_pairs, 'weight': weights, 'type': types})
     edgelist_elements_within = pd.DataFrame(data = {'source': first_of_pairs, 'target': second_of_pairs})
@@ -263,7 +271,7 @@ def network_remove_hic(chromosome, edgelist_ep, args):
     edgelist_elements_between['weight'] = weights
     edgelist_elements_between['type'] = types
 
-    edgelist_elements_new = pd.concat([edgelist_elements_within,edgelist_elements_between], ignore_index=False, sort=True)
+    edgelist_elements_new = pd.concat([edgelist_elements_within,edgelist_elements_between], ignore_index=False)
 
 ##############################
     vertices_elements.to_csv(os.path.join(args.outdir, "vertices_nohic."+chromosome+".txt"), sep="\t", index=True)
