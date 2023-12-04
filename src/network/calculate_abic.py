@@ -26,6 +26,14 @@ def get_predict_argument_parser():
     return parser
 
 
+def compute_score(enhancers, product_terms):
+
+    scores = np.column_stack(product_terms).prod(axis = 1) 
+    
+    enhancers['ABC.Score.Numerator'] = scores
+    enhancers['ABC.Score'] = enhancers['ABC.Score.Numerator'] / enhancers.groupby('TargetGene')['ABC.Score.Numerator'].transform('sum')
+    return(enhancers)
+
 
 
 
@@ -33,8 +41,8 @@ def get_predict_argument_parser():
 def network_from_eps(chromosome, netdir):
 
     print("reading network") 
-    vertices = pd.read_csv(os.path.join(netdir, "vertices_nohic."+chromosome+".txt"), sep="\t", index_col=0)
-    edgelist = pd.read_csv(os.path.join(netdir, "edgelist_nohic."+chromosome+".txt"), sep="\t", index_col=0)
+    vertices = pd.read_csv(os.path.join(netdir, "vertices_ep_TSS."+chromosome+".txt"), sep="\t", index_col=0)
+    edgelist = pd.read_csv(os.path.join(netdir, "edgelist_ep_TSS."+chromosome+".txt"), sep="\t", index_col=0)
 
     t = time.time()
 
@@ -81,8 +89,8 @@ def network_from_eps(chromosome, netdir):
     edgelist_elements_new = pd.concat([edgelist_elements_within,edgelist_elements_between], ignore_index=False, sort=True)
 
 ##############################
-    vertices_elements.to_csv(os.path.join(args.outdir, "vertices_nohic."+chromosome+".txt"), sep="\t", index=True)
-    edgelist_elements_new.to_csv(os.path.join(args.outdir, "edgelist_nohic."+chromosome+".txt"), sep="\t", index=True)
+    vertices_elements.to_csv(os.path.join(args.outdir, "vertices_ep_TSS."+chromosome+".txt"), sep="\t", index=True)
+    edgelist_elements_new.to_csv(os.path.join(args.outdir, "edgelist_ep_TSS."+chromosome+".txt"), sep="\t", index=True)
 
     return edgelist_elements_new
 
@@ -101,21 +109,27 @@ if __name__ == '__main__':
       os.makedirs(args.outdir)
 
   write_params(args, os.path.join(args.outdir, "parameters.predict.txt"))
+  infile_base = os.path.splitext(args.infile)[0]
 
   ABC = pd.read_csv(args.infile,sep='\t', header=0)
   ABC = ABC.loc[:,~ABC.columns.str.match("Unnamed")]
   ABC[['ABC_enhancer','ABC_gene']] = ABC['ABC.id'].str.split('_',expand=True)
+  ABC['path.step'] = None
+  ABC['path.ABC.sum'] = None
+  ABC['path.ABC.mean'] = None
+  ABC['path.ABC.max'] = None
+  ABC['path.ABC.product'] = None
 
   if args.chromosomes == "all":
-      chromosomes = set(genes['chr']).intersection(set(enhancers['chr'])) 
+      chromosomes = set(ABC['chrEnhancer'])
   else:
       chromosomes = args.chromosomes.split(",")
 
   for chromosome in chromosomes:
 
     print("reading network") 
-    vertices = pd.read_csv(os.path.join(args.netdir, "vertices_nohic."+chromosome+".txt"), sep="\t", index_col=0)
-    edgelist = pd.read_csv(os.path.join(args.netdir, "edgelist_nohic."+chromosome+".txt"), sep="\t", index_col=0)
+    vertices = pd.read_csv(os.path.join(args.netdir, "vertices_ep_TSS."+chromosome+".txt"), sep="\t", index_col=0)
+    edgelist = pd.read_csv(os.path.join(args.netdir, "edgelist_ep_TSS."+chromosome+".txt"), sep="\t", index_col=0)
     vertices[['ABC.type','ABC_enhancer']] = vertices['id'].str.split('|',expand=True)
     vertices['ABC_gene'] = None
     vertices.loc[vertices['ABC_enhancer'].isnull(),'ABC_gene'] = vertices.loc[vertices['ABC_enhancer'].isnull(),'id'].to_list()
@@ -126,19 +140,53 @@ if __name__ == '__main__':
     g.vs['id'] = vertices.loc[g.vs['name'],'id'].to_list()
     g.vs['ABC_enhancer'] = vertices.loc[g.vs['name'],'ABC_enhancer'].to_list()
     g.vs['ABC_gene'] = vertices.loc[g.vs['name'],'ABC_gene'].to_list()
+    g.vs['ABC_activity_base'] = vertices.loc[g.vs['name'],'activity_base'].to_list()
     #g.write_edgelist("g.gene.enhancer.edgelist")
     #g.write_graphml("gene.enhancer."+chromosome+".graphml")
     print("graph from pandas:", time.time()-tmp)
 
     tmp = time.time()
-    ABC_bychr = ABC.loc[ABC['chrEnhancer'] == chromosome]
-    for index, row in df.iterrows():
+    for index, row in ABC.loc[ABC['chrEnhancer'] == chromosome].iterrows():
       ve = g.vs.find(ABC_enhancer=row['ABC_enhancer'])
       vg = g.vs.find(id=row['ABC_gene'])
+      
+      results = g.get_shortest_paths(ve, to=vg, output="epath")
+      results_df = pd.DataFrame(results[0], columns=['path_edges'])
+      if len(results) == 0: 
+        continue
+      #print(results_df)
+      last_to = ve
+      for e in results[0]:
+        #print(g.es[e]["weight"])
+        if (g.vs[g.es[e].source] == last_to):
+          current_from = g.vs[g.es[e].source]
+          current_to = g.vs[g.es[e].target]
+          last_to = g.vs[g.es[e].target]
+        else: 
+          current_from = g.vs[g.es[e].target]
+          current_to = g.vs[g.es[e].source]
+          last_to = g.vs[g.es[e].source]
+        
+        #print("from:") 
+        #print(current_from) 
+        #print("to:") 
+        #print(current_to) 
+        score = current_from['ABC_activity_base'] * g.es[e]["weight"]
+        results_df['score'] = score
+
+      #print(results_df)
+      ABC.loc[index,'path.step'] = len(results[0])
+      if len(results[0]) > 0:
+        ABC.loc[index,'path.ABC.sum'] = results_df['score'].sum()
+        ABC.loc[index,'path.ABC.mean'] = results_df['score'].mean()
+        ABC.loc[index,'path.ABC.max'] = results_df['score'].max()
+        ABC.loc[index,'path.ABC.product'] = results_df['score'].product()
+    #print(ABC.loc[ABC['chrEnhancer'] == chromosome,['e0','e1', 'e2', 'e3', 'path.step','ABC.Score.Numerator','path.ABC.sum','path.ABC.mean','path.ABC.max','path.ABC.product']])
 
     #network = network_from_eps(chromosome, args.netdir)
     print("network_from_eps :", time.time()-tmp)
     print("total time :", time.time()-start)
 
+  ABC.to_csv(infile_base+".ABCpath.txt",sep='\t')
 
 

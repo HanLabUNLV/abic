@@ -34,8 +34,20 @@ bedtools intersect -wo -e -f 0.3 -F 0.3 -a $DATADIR/Gasperini2019.TSS.bed -b $TF
 #ln -s $ABCOUTDIR/Neighborhoods.H3K27me3/GeneList.txt ${DATADIR}/GeneList.H3K27me3.txt 
 
 
-# run overlap.gasperini.py
-# run groupbypos.py
+
+# find overlap with ABC, TF and NMF
+python src/preprocess/overlap.gasperini.py
+
+# calculate indirect ABC scores
+python src/network/calculate_abic.py  --netdir data/epgraph/ --outdir data/epgraph/ --infile data/Gasperini/Gasperini2019.at_scale.ABC.TF.NMF.erole.txt  
+
+# extract rows with genes that have at least 1 significant enhancer
+python src/preprocess/atleast1sig.py --dir data/Gasperini/ --infile data/Gasperini/Gasperini2019.at_scale.ABC.TF.NMF.erole.ABCpath.txt
+
+# group by chromosomal position for groupCV
+python src/preprocess/groupbypos.py
+python src/preprocess/groupgenesbypos.py
+
 
 
 

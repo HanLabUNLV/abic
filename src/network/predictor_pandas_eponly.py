@@ -185,9 +185,9 @@ def network_from_gene_enhancer(chromosome, edgelist_hic, args):
 
     # bind features to vertices
     vertices_ep = pd.concat([vertices_ep.reset_index(), enhancers[["normalized_h3K27ac", "normalized_dhs", "activity_base", "id"]].reset_index(drop=True)], axis=1)      
-    vertices_ep.to_csv(os.path.join(args.outdir, "vertices_ep."+chromosome+".txt"), sep="\t", index=False)
+    vertices_ep.to_csv(os.path.join(args.outdir, "vertices_ep_hic."+chromosome+".txt"), sep="\t", index=False)
     vertices_TSS = pd.concat([vertices_TSS.reset_index(), genes[["TargetGeneExpression", "TargetGeneExpressionQuantile", "TargetGenePromoterActivityQuantile", "TargetGeneIsExpressed", "id"]].reset_index(drop=True)], axis=1)      
-    vertices_TSS.to_csv(os.path.join(args.outdir, "vertices_TSS."+chromosome+".txt"), sep="\t", index=False)
+    vertices_TSS.to_csv(os.path.join(args.outdir, "vertices_TSS_hic."+chromosome+".txt"), sep="\t", index=False)
 
     # create edgelist pandas and save
     edgelist_ep_weight = np.repeat([1], [len(enhancers)], axis=0)
@@ -199,9 +199,9 @@ def network_from_gene_enhancer(chromosome, edgelist_hic, args):
     edgelist_TSS = pd.DataFrame(data = {'source': edgelist_TSS_bin, 'target': edgelist_TSS_vid, 'weight': edgelist_TSS_weight, 'type': edgelist_TSS_type})
     edgelist = pd.concat([edgelist_hic, edgelist_ep, edgelist_TSS], ignore_index=True)
 
-    edgelist_ep.to_csv(os.path.join(args.outdir, "edgelist_ep."+chromosome+".txt"), sep="\t", index=True)
-    edgelist_TSS.to_csv(os.path.join(args.outdir, "edgelist_TSS."+chromosome+".txt"), sep="\t", index=True)
-    edgelist.to_csv(os.path.join(args.outdir, "edgelist."+chromosome+".txt"), sep="\t", index=True)
+    edgelist_ep.to_csv(os.path.join(args.outdir, "edgelist_ep_hic."+chromosome+".txt"), sep="\t", index=True)
+    edgelist_TSS.to_csv(os.path.join(args.outdir, "edgelist_TSS_hic."+chromosome+".txt"), sep="\t", index=True)
+    edgelist.to_csv(os.path.join(args.outdir, "edgelist_ep_TSS_hic."+chromosome+".txt"), sep="\t", index=True)
 
     return edgelist
 
@@ -210,12 +210,12 @@ def network_remove_hic(chromosome, edgelist_ep, args):
 
     print("reading network") 
     vertices_hic = pd.read_csv(os.path.join(args.outdir, "vertices_hic."+chromosome+".txt"), sep="\t", index_col=0)
-    vertices_ep = pd.read_csv(os.path.join(args.outdir, "vertices_ep."+chromosome+".txt"), sep="\t", index_col=0)
-    vertices_TSS = pd.read_csv(os.path.join(args.outdir, "vertices_TSS."+chromosome+".txt"), sep="\t", index_col=0)
+    vertices_ep = pd.read_csv(os.path.join(args.outdir, "vertices_ep_hic."+chromosome+".txt"), sep="\t", index_col=0)
+    vertices_TSS = pd.read_csv(os.path.join(args.outdir, "vertices_TSS_hic."+chromosome+".txt"), sep="\t", index_col=0)
     vertices_elements = pd.concat([vertices_ep, vertices_TSS], sort='False')
     edgelist_hic = pd.read_csv(os.path.join(args.outdir, "edgelist_hic."+chromosome+".txt"), sep="\t", index_col=0)
-    edgelist_ep = pd.read_csv(os.path.join(args.outdir, "edgelist_ep."+chromosome+".txt"), sep="\t", index_col=0)
-    edgelist_TSS = pd.read_csv(os.path.join(args.outdir, "edgelist_TSS."+chromosome+".txt"), sep="\t", index_col=0)
+    edgelist_ep = pd.read_csv(os.path.join(args.outdir, "edgelist_ep_hic."+chromosome+".txt"), sep="\t", index_col=0)
+    edgelist_TSS = pd.read_csv(os.path.join(args.outdir, "edgelist_TSS_hic."+chromosome+".txt"), sep="\t", index_col=0)
     edgelist_elements = pd.concat([edgelist_ep, edgelist_TSS], sort='True')
 
     print("leave hic bins with elements")
@@ -274,8 +274,8 @@ def network_remove_hic(chromosome, edgelist_ep, args):
     edgelist_elements_new = pd.concat([edgelist_elements_within,edgelist_elements_between], ignore_index=False)
 
 ##############################
-    vertices_elements.to_csv(os.path.join(args.outdir, "vertices_nohic."+chromosome+".txt"), sep="\t", index=True)
-    edgelist_elements_new.to_csv(os.path.join(args.outdir, "edgelist_nohic."+chromosome+".txt"), sep="\t", index=True)
+    vertices_elements.to_csv(os.path.join(args.outdir, "vertices_ep_TSS."+chromosome+".txt"), sep="\t", index=True)
+    edgelist_elements_new.to_csv(os.path.join(args.outdir, "edgelist_ep_TSS."+chromosome+".txt"), sep="\t", index=True)
 
     return edgelist_elements_new
 

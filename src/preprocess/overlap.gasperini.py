@@ -185,7 +185,6 @@ Gasperini_atscale_ABC.drop(Gasperini_atscale_ABC.filter(regex='_y$').columns, ax
 Gasperini_atscale_ABC = pd.merge(Gasperini_atscale_ABC, TSS_TF_pivot, how="left", left_on=["GeneSymbol"], right_on=["gene"], suffixes=('', '_y'))
 Gasperini_atscale_ABC.drop(Gasperini_atscale_ABC.filter(regex='_y$').columns, axis=1, inplace=True)
 Gasperini_atscale_ABC.to_csv(data_dir+"Gasperini2019.at_scale.ABC.TF.txt", sep='\t')
-Gasperini_atscale_ABC.loc[Gasperini_atscale_ABC['atleast1Sig'] == True,].to_csv(data_dir+"Gasperini2019.at_scale.ABC.TF.atleast1sig.txt", sep='\t')
 Gasperini_atscale_ABC.loc[:,list(TFcolumns)] = Gasperini_atscale_ABC.loc[:,list(TFcolumns)].fillna(0)
 
 #e_TF = Gasperini_atscale_ABC.iloc[:,start:(start+len(TFcolumns))]
@@ -195,7 +194,6 @@ Gasperini_atscale_ABC.loc[:,list(TFcolumns)] = Gasperini_atscale_ABC.loc[:,list(
 #cobinding = cobinding.add_suffix('_co')
 #Gasperini_atscale_ABC = pd.concat([Gasperini_atscale_ABC, cobinding], axis=1)
 #Gasperini_atscale_ABC.to_csv(data_dir+"Gasperini2019.at_scale.ABC.TF.cobinding.txt", sep='\t')
-#Gasperini_atscale_ABC.loc[Gasperini_atscale_ABC['atleast1Sig'] == True,].to_csv(data_dir+"Gasperini2019.at_scale.ABC.TF.cobinding.atleast1sig.txt", sep='\t')
 e_TFfeatures =  Gasperini_atscale_ABC.loc[:,list(enhancer_TF_pivot.columns)]
 NMFprefix='Gasperini2019.eTF.NMF'
 pd.DataFrame(enhancer_TF_pivot.columns).to_csv(data_dir+NMFprefix+'.featureinput.txt', sep='\t')
@@ -208,13 +206,11 @@ TSSTF_nmf_reduced_features = DR_NMF_features(TSS_TFfeatures, data_dir, 'Gasperin
 TSSTF_nmf_reduced_features = TSSTF_nmf_reduced_features.add_prefix('TSS')
 Gasperini_atscale_ABC = pd.concat([Gasperini_atscale_ABC, eTF_nmf_reduced_features, TSSTF_nmf_reduced_features], axis=1)
 Gasperini_atscale_ABC.to_csv(data_dir+"Gasperini2019.at_scale.ABC.TF.NMF.txt", sep='\t')
-Gasperini_atscale_ABC.loc[Gasperini_atscale_ABC['atleast1Sig'] == True,].to_csv(data_dir+"Gasperini2019.at_scale.ABC.TF.NMF.atleast1sig.txt", sep='\t')
 
 # erole
 erole = pd.read_csv(data_dir+"Gasperini2019.at_scale.eroles.txt", sep="\t")
 Gasperini_atscale_ABC = pd.merge(Gasperini_atscale_ABC, erole, left_on=["name"], right_on=["name_x"])
 Gasperini_atscale_ABC.drop(Gasperini_atscale_ABC.filter(regex='_x$').columns, axis=1, inplace=True)
 Gasperini_atscale_ABC.to_csv(data_dir+"Gasperini2019.at_scale.ABC.TF.NMF.erole.txt", sep='\t')
-Gasperini_atscale_ABC.loc[Gasperini_atscale_ABC['atleast1Sig'] == True,].to_csv(data_dir+"Gasperini2019.at_scale.ABC.TF.NMF.erole.atleast1sig.txt", sep='\t')
 
 
