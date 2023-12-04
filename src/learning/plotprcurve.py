@@ -72,6 +72,7 @@ if __name__ == "__main__":
 
     y_real_test = np.concatenate(y_real_test)
     y_proba_test = np.concatenate(y_proba_test)
+
     precision, recall, _ = precision_recall_curve(y_real_test, y_proba_test)
     AUCPR=auc(recall, precision)
     plt.plot(recall, precision, color='red',
@@ -86,10 +87,15 @@ if __name__ == "__main__":
     ABC_pd = pd.read_csv('data/Gasperini/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.test.txt', sep="\t", index_col=None)
     ABC_score = ABC_pd['ABC.Score'] 
     distance = 1/np.log(ABC_pd['distance'])
-    y = ABC_pd['Significant']
+    y = ABC_pd['Significant'].astype(int)
     ABC_test = pd.concat([y, distance, ABC_score], axis=1)
-    ABC_test = ABC_test.dropna()
 
+    ABC_test['y_pred'] = ABC_test['ABC.Score'] > 0.022
+    ABC_test['y_pred'] = ABC_test['y_pred'].astype(int)
+    y_res = ABC_test[['Significant','y_pred']]
+    y_res.to_csv('ABC.confusion.txt', index=False, sep='\t')
+
+    ABC_test = ABC_test.dropna()
     precision, recall, thresholds = precision_recall_curve(ABC_test['Significant'], ABC_test['ABC.Score'])
     AUCPR=auc(recall, precision)
     plt.plot(recall, precision, color='green',
