@@ -1,5 +1,14 @@
 import pandas as pd
 import numpy as np
+import os.path
+import argparse
+import time
+
+
+
+
+
+
 
 
 def group_by_pos(arg_df):
@@ -24,25 +33,42 @@ def group_by_pos(arg_df):
 
 
 
-datadir="/data8/han_lab/mhan/abic/data/Gasperini/"
-df = pd.read_csv(datadir+'Gasperini2019.at_scale.ABC.TF.NMF.erole.txt', sep="\t", index_col=0)
-df_by_chr = {chr_v: df[df['chrEnhancer'] == chr_v].copy() for chr_v in df.chrEnhancer.unique()}
 
-newdf = pd.DataFrame()
-for chromosome in df_by_chr.keys():
-  chr_df = df_by_chr[chromosome].copy()
-  new_chr_df = group_by_pos(chr_df)
-  newdf = pd.concat([newdf, new_chr_df], axis=0)
-newdf.to_csv(datadir+"Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.txt", sep="\t")
+if __name__ == '__main__':
+  start = time.time()
+  tmp = time.time()
+  parser = argparse.ArgumentParser()
 
-df = pd.read_csv(datadir+'Gasperini2019.at_scale.ABC.TF.NMF.erole.atleast1sig.txt', sep="\t", index_col=0)
-df_by_chr = {chr_v: df[df['chrEnhancer'] == chr_v].copy() for chr_v in df.chrEnhancer.unique()}
+  #Basic parameters
+  parser.add_argument('--dir', required=True, help="output directory")
+  parser.add_argument('--infile', required=False, help="gasperini infile name")
+  parser.add_argument('--atleast1sig', required=False, default=False, action='store_true', help="gasperini infile name")
+ 
+  args = parser.parse_args()
 
 
-newdf = pd.DataFrame()
-for chromosome in df_by_chr.keys():
-  chr_df = df_by_chr[chromosome].copy()
-  new_chr_df = group_by_pos(chr_df)
-  newdf = pd.concat([newdf, new_chr_df], axis=0)
-newdf.to_csv(datadir+"Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.atleast1sig.txt", sep="\t")
+  infile_base = os.path.splitext(args.infile)[0]
+
+  datadir=args.dir
+  df = pd.read_csv(datadir+'/'+args.infile, sep="\t", index_col=0)
+  df_by_chr = {chr_v: df[df['chrEnhancer'] == chr_v].copy() for chr_v in df.chrEnhancer.unique()}
+
+  newdf = pd.DataFrame()
+  for chromosome in df_by_chr.keys():
+    chr_df = df_by_chr[chromosome].copy()
+    new_chr_df = group_by_pos(chr_df)
+    newdf = pd.concat([newdf, new_chr_df], axis=0)
+  newdf.to_csv(datadir+'/'+infile_base+".grouped.txt", sep="\t")
+
+  if args.atleast1sig:
+    df = pd.read_csv(datadir+'/'+infile_base+".atleast1sig.txt", sep="\t", index_col=0)
+    df_by_chr = {chr_v: df[df['chrEnhancer'] == chr_v].copy() for chr_v in df.chrEnhancer.unique()}
+
+
+    newdf = pd.DataFrame()
+    for chromosome in df_by_chr.keys():
+      chr_df = df_by_chr[chromosome].copy()
+      new_chr_df = group_by_pos(chr_df)
+      newdf = pd.concat([newdf, new_chr_df], axis=0)
+    newdf.to_csv(datadir+'/'+infile_base+".atleast1sig.grouped.txt", sep="\t")
 

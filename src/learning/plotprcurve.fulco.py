@@ -22,28 +22,28 @@ def prcurve_from_file(pr_filename, confusion_filename, y_real, y_proba, colornam
 if __name__ == "__main__":
 
     pr_cv = [
-            "run.boruta7/boruta7.2pass.pr_curve.xgb.0.txt",
-            "run.boruta7/boruta7.2pass.pr_curve.xgb.1.txt",
-            "run.boruta7/boruta7.2pass.pr_curve.xgb.2.txt",
-            "run.boruta7/boruta7.2pass.pr_curve.xgb.3.txt", 
+            "run.all/all.2pass.pr_curve.xgb.0.txt",
+            "run.all/all.2pass.pr_curve.xgb.1.txt",
+            "run.all/all.2pass.pr_curve.xgb.2.txt",
+            "run.all/all.2pass.pr_curve.xgb.3.txt", 
             ]
     confusion_cv = [
-        "run.boruta7/boruta7.2pass.confusion.xgb.0.txt",
-        "run.boruta7/boruta7.2pass.confusion.xgb.1.txt",
-        "run.boruta7/boruta7.2pass.confusion.xgb.2.txt",
-        "run.boruta7/boruta7.2pass.confusion.xgb.3.txt",
+        "run.all/all.2pass.confusion.xgb.0.txt",
+        "run.all/all.2pass.confusion.xgb.1.txt",
+        "run.all/all.2pass.confusion.xgb.2.txt",
+        "run.all/all.2pass.confusion.xgb.3.txt",
         ]
     pr_test = [
-            "applymodel/Fulco/pr_curve.boruta7.2pass.save.0.txt",
-            "applymodel/Fulco/pr_curve.boruta7.2pass.save.1.txt",
-            "applymodel/Fulco/pr_curve.boruta7.2pass.save.2.txt",
-            "applymodel/Fulco/pr_curve.boruta7.2pass.save.3.txt", 
+            "apply.all/Fulco/pr_curve.all.2pass.save.0.txt",
+            "apply.all/Fulco/pr_curve.all.2pass.save.1.txt",
+            "apply.all/Fulco/pr_curve.all.2pass.save.2.txt",
+            "apply.all/Fulco/pr_curve.all.2pass.save.3.txt", 
             ]
     confusion_test = [
-        "applymodel/Fulco/confusion.boruta7.2pass.save.0.txt",
-        "applymodel/Fulco/confusion.boruta7.2pass.save.1.txt",
-        "applymodel/Fulco/confusion.boruta7.2pass.save.2.txt",
-        "applymodel/Fulco/confusion.boruta7.2pass.save.3.txt",
+        "apply.all/Fulco/confusion.all.2pass.save.0.txt",
+        "apply.all/Fulco/confusion.all.2pass.save.1.txt",
+        "apply.all/Fulco/confusion.all.2pass.save.2.txt",
+        "apply.all/Fulco/confusion.all.2pass.save.3.txt",
         ]
 
     i = 0

@@ -5,22 +5,6 @@ from sklearn.decomposition import NMF
 
 
 
-def DR_NMF_features(TFmatrix, NMFdir, outdir, prefix):
-
-    nmf_dump = NMFdir+'/'+prefix+'.gz'
-    nmf_model = joblib.load(nmf_dump)
-    W = nmf_model.transform(TFmatrix)
-    Wdf = pd.DataFrame(W, index=TFmatrix.index, columns =  ["TF_NMF_" + str(i+1) for i in range(nmf_model.n_components)])
-    Wdf.to_csv(outdir+'/'+prefix+'.TF.W.txt', index=False, sep='\t')
-    H = nmf_model.components_
-    Hdf = pd.DataFrame(H, columns=TFmatrix.columns)
-    Hdf.to_csv(outdir+'/'+prefix+'.TF.H.txt', index=False, sep='\t')
-    return (Wdf)
-
-
-
-
-
 
 
 
@@ -32,13 +16,23 @@ Fulco_enhancer = pd.read_csv(data_dir+"Fulco2019.enhancer.ABC.overlap.bed", sep=
 Fulco_TSS = pd.read_csv(data_dir+"Fulco2019.TSS.ABC.overlap.bed", sep='\t')
 Fulco_crispr = pd.read_csv(data_dir+"Fulco2019.STable6a.tab", sep="\t")
 Fulco_crispr['Adjusted p-value'] = Fulco_crispr['Adjusted p-value'].fillna(1)
+
+
 ABC = pd.read_csv(data_dir+"ABC.EnhancerPredictionsAllPutative.txt", sep='\t')
 ABC_by_gene = ABC.groupby('TargetGene')
-ABC['Enhancer.count'] = ABC_by_gene[['ABC.Score']].transform('count')
-ABC['ABC.Score.mean'] = ABC_by_gene[['ABC.Score']].transform('mean')
-ABC['ABC.Score.Numerator.sum'] = ABC_by_gene[['ABC.Score.Numerator']].transform('sum')
-ABC['ABC.Score.rest'] = ABC['ABC.Score.Numerator.sum'] - ABC['ABC.Score.Numerator']
-
+ABC['Enhancer.count.near.TSS'] = ABC_by_gene[['hic_contact']].transform('count')
+ABC['mean.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('mean')
+ABC['max.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('max')
+ABC['diff.from.max.contact.to.TSS'] = ABC['hic_contact']-ABC['max.contact.to.TSS']
+ABC['total.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('sum')
+ABC['remaining.enhancers.contact.to.TSS'] = ABC['total.contact.to.TSS'] - ABC['hic_contact']
+ABC_by_enhancer = ABC.groupby('name')
+ABC['TSS.count.near.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('count')
+ABC['mean.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('mean')
+ABC['max.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('max')
+ABC['diff.from.max.contact.from.enhancer'] = ABC['hic_contact']-ABC['max.contact.from.enhancer']
+ABC['total.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('sum')
+ABC['remaining.TSS.contact.from.enhancer'] = ABC['total.contact.from.enhancer'] - ABC['hic_contact']
 
 new = Fulco_enhancer["G.id"].str.split("|", n=1, expand=True)
 Fulco_enhancer["G.class"]=new[0]
@@ -164,45 +158,14 @@ Fulco_crispr_ABC = pd.merge(Fulco_crispr_ABC, enhancer_TF_pivot, how="left", lef
 Fulco_crispr_ABC.drop(Fulco_crispr_ABC.filter(regex='_y$').columns, axis=1, inplace=True)
 Fulco_crispr_ABC = pd.merge(Fulco_crispr_ABC, TSS_TF_pivot, how="left", left_on=["Gene"], right_on=["gene"])
 Fulco_crispr_ABC.drop(Fulco_crispr_ABC.filter(regex='_y$').columns, axis=1, inplace=True)
-Fulco_crispr_ABC.to_csv(data_dir+"Fulco2019.CRISPR.ABC.TF.txt", sep='\t')
 Fulco_crispr_ABC.loc[:,list(TFcolumns)] = Fulco_crispr_ABC.loc[:,list(TFcolumns)].fillna(0)
-
-#e_TF = Fulco_crispr_ABC.iloc[:,start:(start+len(TFcolumns))]
-#TSS_TF = Fulco_crispr_ABC.iloc[:,(start+len(TFcolumns)):(start+len(TFcolumns)+len(TFcolumns))]
-#cobinding = pd.DataFrame(np.logical_and(e_TF, np.asarray(TSS_TF))).astype(int)  
-#cobinding.columns = TFcolumns
-#cobinding = cobinding.add_suffix('_co')
-#Fulco_crispr_ABC = pd.concat([Fulco_crispr_ABC, cobinding], axis=1)
-#Fulco_crispr_ABC.to_csv(data_dir+"Fulco2019.CRISPR.ABC.TF.cobinding.allsig.txt", sep='\t')
-e_TFfeatures =  Fulco_crispr_ABC.loc[:,list(enhancer_TF_pivot.columns)]
-NMFprefix='Gasperini2019.eTF.NMF'
-eNMFinputfeatures = pd.read_csv(gasperini_data_dir+'/'+NMFprefix+'.featureinput.txt', sep='\t')
-missingTF = np.setdiff1d(eNMFinputfeatures['TF'].tolist(), e_TFfeatures.columns.tolist()).tolist()
-for TF in missingTF:
-  e_TFfeatures[TF] = 0
-e_TFfeatures = e_TFfeatures[eNMFinputfeatures['TF']]
-eTF_nmf_reduced_features = DR_NMF_features(e_TFfeatures, gasperini_data_dir, data_dir, NMFprefix)
-eTF_nmf_reduced_features = eTF_nmf_reduced_features.add_prefix('e')
-
-TSS_TFfeatures =  Fulco_crispr_ABC.loc[:,list(TSS_TF_pivot.columns)]
-NMFprefix='Gasperini2019.TSSTF.NMF'
-TSSNMFinputfeatures = pd.read_csv(gasperini_data_dir+'/'+NMFprefix+'.featureinput.txt', sep='\t')
-missingTF = np.setdiff1d(TSSNMFinputfeatures['TF'].tolist(), TSS_TFfeatures.columns.tolist()).tolist()
-for TF in missingTF:
-  TSS_TFfeatures[TF] = 0
-TSS_TFfeatures = TSS_TFfeatures[TSSNMFinputfeatures['TF']]
-TSSTF_nmf_reduced_features = DR_NMF_features(TSS_TFfeatures, gasperini_data_dir, data_dir, NMFprefix)
-TSSTF_nmf_reduced_features = TSSTF_nmf_reduced_features.add_prefix('TSS')
-
-Fulco_crispr_ABC = pd.concat([Fulco_crispr_ABC, eTF_nmf_reduced_features, TSSTF_nmf_reduced_features], axis=1)
-Fulco_crispr_ABC.to_csv(data_dir+"Fulco2019.CRISPR.ABC.TF.NMF.txt", sep='\t')
-#Fulco_crispr_ABC.loc[Fulco_crispr_ABC['atleast1Sig'] == True,].to_csv(data_dir+"Fulco2019.CRISPR.ABC.TF.NMF.atleast1sig.txt", sep='\t')
+Fulco_crispr_ABC.to_csv(data_dir+"Fulco2019.CRISPR.ABC.TF.txt", sep='\t')
 
 
 # significant.negative
 Fulco_crispr_ABC.rename(columns={'Significant':'Sig.pos.neg'}, inplace=True)
 Fulco_crispr_ABC['Significant'] = Fulco_crispr_ABC['Sig.pos.neg'] & (Fulco_crispr_ABC['Fraction change in gene expr'] < 0)
-Fulco_crispr_ABC.to_csv(data_dir+"Fulco2019.CRISPR.ABC.TF.NMF.txt", sep='\t')
+Fulco_crispr_ABC.to_csv(data_dir+"Fulco2019.CRISPR.ABC.TF.txt", sep='\t')
 
 # erole
 #erole = pd.read_csv(data_dir+"Fulco2019.CRISPR.eroles.txt", sep="\t")

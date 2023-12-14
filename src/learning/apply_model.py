@@ -10,7 +10,6 @@ from sklearn import preprocessing
 from sklearn.datasets import load_digits
 from sklearn.model_selection import GridSearchCV, train_test_split, StratifiedKFold, cross_val_score
 from sklearn.pipeline import Pipeline
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.decomposition import PCA, NMF
 from sklearn.manifold import TSNE
 from sklearn.feature_selection import SelectKBest, chi2
@@ -69,7 +68,7 @@ if __name__ == "__main__":
   ActivityFeatures = X_test[['ABC.id', 'normalized_h3K27ac', 'normalized_h3K4me3', 'normalized_h3K27me3', 'normalized_dhs', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile', 'TargetGeneIsExpressed', 'distance', 'H3K27ac.RPKM.quantile.TSS1Kb', 'H3K4me3.RPKM.quantile.TSS1Kb', 'H3K27me3.RPKM.quantile.TSS1Kb']].copy()
   ActivityFeatures = ActivityFeatures.dropna()
   ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
-  hicfeatures = X_test[['hic_contact', 'ABC.Score.Numerator.sum', 'ABC.Score.rest']].copy()
+  hicfeatures = X_test[['hic_contact', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'diff.from.max.contact.to.TSS', 'total.contact.to.TSS', 'remaining.enhancers.contact.to.TSS', 'TSS.count.near.enhancer', 'mean.contact.from.enhancer', 'diff.from.max.contact.from.enhancer', 'total.contact.from.enhancer', 'remaining.TSS.contact.from.enhancer']].copy()
   hicfeatures = hicfeatures.dropna()
   TFfeatures = X_test.filter(regex='(_e)|(_TSS)|(NMF)').copy()
   TFfeatures = TFfeatures.dropna()

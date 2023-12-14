@@ -40,6 +40,14 @@ ln -s $ABCOUTDIR/Neighborhoods.H3K27me3/GeneList.txt ${DATADIR}/GeneList.H3K27me
 # run overlap.fulco.py
 python src/preprocess/overlap.fulco.py 
 
-# generate target.txt
-awk -F"\t" '{print $576}' ${DATADIR}/Fulco2019.CRISPR.ABC.TF.NMF.txt > ${DATADIR}/Fulco2019.CRISPR.ABC.TF.NMF.target.txt
-#
+
+
+# calculate indirect ABC scores
+python -i src/network/calculate_abic.py  --netdir data/epgraph.Fulco.K562/ --dir data/Fulco --infile Fulco2019.CRISPR.ABC.TF.txt 
+
+
+# apply DR
+python src/preprocess/applynmf.py --dir data/Fulco --infile Fulco2019.CRISPR.ABC.TF.ABCpath.txt --NMFdir data/Gasperini/
+
+
+

@@ -73,28 +73,30 @@ class Objective:
       # use exact for small featuresset.
       "tree_method": "auto",
       # n_estimator
-      "num_boost_round": trial.suggest_int("num_boost_round", 100, 500),
+      "num_boost_round": trial.suggest_int("num_boost_round", 50, 500),
       # defines booster
       "booster": trial.suggest_categorical("booster", ["gbtree"]),
       #"booster": trial.suggest_categorical("booster", ["dart"]),
       # maximum depth of the tree, signifies complexity of the tree.
       #"max_depth": trial.suggest_int("max_depth", 3, 4),
-      "max_depth": 4,
+      "max_depth": 3,
       # minimum child weight, larger the term more conservative the tree.
-      "min_child_weight": trial.suggest_int("min_child_weight", 10, 25),
+      "min_child_weight": trial.suggest_int("min_child_weight", 10, 20),
       # learning rate
       #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
-      "eta": 0.01,
+      "eta": 0.03,
       # sampling ratio for training features.
-      "subsample": trial.suggest_float("subsample", 0.5, 0.95),
+      #"subsample": 0.6,
+      "subsample": trial.suggest_float("subsample", 0.4, 0.9),
       # sampling according to each tree.
-      "colsample_bytree": trial.suggest_float("colsample_bytree", 0.65, 0.95),
+      #"colsample_bytree": 0.7,
+      "colsample_bytree": trial.suggest_float("colsample_bytree", 0.45, 0.9),
       # L2 regularization weight.
-      #"lambda": trial.suggest_float("lambda", 1, 3, log=True),
+      "lambda": trial.suggest_float("lambda", 2, 3, log=True),
       # L1 regularization weight.
-      #"alpha": trial.suggest_float("alpha", 1e-9, 0.2, log=True),
+      "alpha": trial.suggest_float("alpha", 1e-4, 0.2, log=True),
       # defines how selective algorithm is.
-      "gamma": trial.suggest_float("gamma", 5, 25),
+      "gamma": trial.suggest_float("gamma", 10, 20),
       #"grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
       "scale_pos_weight": self.cls_weight,
       "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
@@ -200,7 +202,7 @@ class Objective:
       "min_child_weight": trial.suggest_int("min_child_weight", 10, 20),
       # learning rate
       #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
-      "eta": 0.05,
+      "eta": 0.01,
       # sampling ratio for training features.
       #"subsample": 0.5,
       "subsample": trial.suggest_float("subsample", 0.6, 0.9),
@@ -262,7 +264,7 @@ class Objective:
             xgb_clf_cv = xgb.train(params=param, dtrain=dtrain, 
                               num_boost_round=param['num_boost_round'],
                               evals=[(dtrain, "train"),(dtest, "validation")],
-                              early_stopping_rounds=300,
+                              early_stopping_rounds=150,
                               evals_result=evals_result,
                               callbacks=[pruning_callback]
                               )
@@ -270,7 +272,7 @@ class Objective:
             xgb_clf_cv = xgb.train(params=param, dtrain=dtrain, 
                               num_boost_round=param['num_boost_round'],
                               evals=[(dtrain, "train"),(dtest, "validation")],
-                              early_stopping_rounds=300,
+                              early_stopping_rounds=150,
                               evals_result=evals_result,
                               )
 
@@ -392,7 +394,7 @@ class OuterFolds:
                 #pruner = optuna.pruners.MedianPruner(n_warmup_steps=5)
                 # xgb study
                 study_name = study_name_prefix+'.'+model+"."+str(outer_index)
-                #optuna.delete_study(study_name=study_name, storage=storage) # if there is existing study remove.
+                optuna.delete_study(study_name=study_name, storage=storage) # if there is existing study remove.
                 study = optuna.create_study(study_name=study_name, direction="maximize", storage=storage, pruner=pruner, load_if_exists=True)
 
 
@@ -764,13 +766,11 @@ if __name__ == "__main__":
       ActivityFeatures = features_gasperini[['ABC.id', 'normalized_h3K27ac', 'normalized_h3K4me3', 'normalized_h3K27me3', 'normalized_dhs', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile', 'TargetGeneIsExpressed', 'distance', 'H3K27ac.RPKM.quantile.TSS1Kb', 'H3K4me3.RPKM.quantile.TSS1Kb', 'H3K27me3.RPKM.quantile.TSS1Kb']].copy()
       ActivityFeatures = ActivityFeatures.dropna()
       ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
-      hicfeatures = features_gasperini[['hic_contact', 'ABC.Score.Numerator.sum', 'ABC.Score.rest']].copy()
-      #hicfeatures = features_gasperini[['hic_contact', 'hic_contact_pl_scaled_adj', 'ABC.Score.Numerator.sum', 'ABC.Score.rest']].copy()
+      hicfeatures = features_gasperini[['hic_contact', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'diff.from.max.contact.to.TSS', 'total.contact.to.TSS', 'remaining.enhancers.contact.to.TSS', 'TSS.count.near.enhancer', 'mean.contact.from.enhancer', 'diff.from.max.contact.from.enhancer', 'total.contact.from.enhancer', 'remaining.TSS.contact.from.enhancer']].copy()
+      #hicfeatures = features_gasperini[['hic_contact', 'hic_contact_pl_scaled_adj', 'ABC.Score.Numerator.sum', 'ABC.Score.otherenhancers']].copy()
       hicfeatures = hicfeatures.dropna()
       TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)|(NMF)').copy()
       TFfeatures = TFfeatures.dropna()
-      cobindingfeatures = features_gasperini.filter(regex=r'_co$').copy()
-      cobindingfeatures = cobindingfeatures.dropna()
       crisprfeatures = features_gasperini[['EffectSize', 'Significant', 'pValue' ]].copy()
       crisprfeatures = crisprfeatures.dropna()
       groupfeatures = features_gasperini[['group']].copy()
@@ -778,13 +778,11 @@ if __name__ == "__main__":
       features = ActivityFeatures.copy()
       features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
       features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
-      features = pd.merge(features, cobindingfeatures, left_index=True, right_index=True)
       features = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
       data = pd.merge(features, groupfeatures, left_index=True, right_index=True)
       ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
       hicfeatures = data.iloc[:, ActivityFeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]]
       TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
-      cobindingfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]+cobindingfeatures.shape[1]]
       #crisprfeatures = data.iloc[:, -3:]
       crisprfeatures = data[['EffectSize', 'Significant', 'pValue' ]]
       groupfeatures = data[['group']]

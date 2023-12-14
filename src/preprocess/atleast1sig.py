@@ -23,8 +23,8 @@ if __name__ == '__main__':
 
   infile_base = os.path.splitext(args.infile)[0]
 
-  ABC = pd.read_csv(args.infile,sep='\t', header=0)
+  ABC = pd.read_csv(args.dir+'/'+args.infile,sep='\t', header=0)
   ABC_atleast1sig = ABC.loc[ABC['atleast1Sig'] == True,]
-  ABC_atleast1sig.to_csv(infile_base+".atleast1sig.txt",sep='\t')
+  ABC_atleast1sig.to_csv(args.dir+'/'+infile_base+".atleast1sig.txt",sep='\t')
 
 

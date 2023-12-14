@@ -66,8 +66,8 @@ if __name__ == "__main__":
     precision, recall, _ = precision_recall_curve(y_real_cv, y_proba_cv)
     AUCPR=auc(recall, precision)
     plt.plot(recall, precision, color='blue',
-    #         label=r'Test(outer fold CV) (AUC = %0.2f)' % (average_precision_score(y_real_cv, y_proba_cv)),
-             label=r'Test(outer fold CV) (AUC = %0.2f)' % (AUCPR),
+             label=r'Test(outer fold CV) (AUC = %0.2f)' % (average_precision_score(y_real_cv, y_proba_cv)),
+             #label=r'Test(outer fold CV) (AUC = %0.2f)' % (AUCPR),
              lw=2, alpha=.8)
 
     y_real_test = np.concatenate(y_real_test)
@@ -76,15 +76,13 @@ if __name__ == "__main__":
     precision, recall, _ = precision_recall_curve(y_real_test, y_proba_test)
     AUCPR=auc(recall, precision)
     plt.plot(recall, precision, color='red',
-             #label=r'Test(chr 5,10,15,20) (AUC = %0.2f)' % (average_precision_score(y_real_test, y_proba_test)),
-             label=r'Test(chr 5,10,15,20) (AUC = %0.2f)' % (AUCPR),
+             label=r'Test(chr 5,10,15,20) (AUC = %0.2f)' % (average_precision_score(y_real_test, y_proba_test)),
+             #label=r'Test(chr 5,10,15,20) (AUC = %0.2f)' % (AUCPR),
              lw=2, alpha=.8)
 
 
 
-    #ABC_pd = pd.read_csv('data/Gasperini/Gasperini2019.at_scale.ABC.TF.cobinding.txt', sep="\t", index_col=None)
-    #ABC_pd = pd.read_csv('data/Gasperini/Gasperini2019.at_scale.ABC.TF.cobinding.erole.grouped.allsig.txt', sep="\t", index_col=None)
-    ABC_pd = pd.read_csv('data/Gasperini/Gasperini2019.at_scale.ABC.TF.NMF.erole.grouped.test.txt', sep="\t", index_col=None)
+    ABC_pd = pd.read_csv('data/Gasperini/Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt', sep="\t", index_col=None)
     ABC_score = ABC_pd['ABC.Score'] 
     distance = 1/np.log(ABC_pd['distance'])
     y = ABC_pd['Significant'].astype(int)
@@ -99,15 +97,15 @@ if __name__ == "__main__":
     precision, recall, thresholds = precision_recall_curve(ABC_test['Significant'], ABC_test['ABC.Score'])
     AUCPR=auc(recall, precision)
     plt.plot(recall, precision, color='green',
-             #label=r'ABC_score (AUC = %0.2f)' % (average_precision_score(ABC_test['Significant'], ABC_test['ABC.Score'])),
-             label=r'ABC_score (AUC = %0.2f)' % (AUCPR),
+             label=r'ABC_score (AUC = %0.2f)' % (average_precision_score(ABC_test['Significant'], ABC_test['ABC.Score'])),
+             #label=r'ABC_score (AUC = %0.2f)' % (AUCPR),
              lw=2, alpha=.8)
 
     precision, recall, thresholds = precision_recall_curve(ABC_test['Significant'], ABC_test['distance'])
     AUCPR=auc(recall, precision)
     plt.plot(recall, precision, color='black',
-             #label=r'distance (AUC = %0.2f)' % (average_precision_score(ABC_test['Significant'], ABC_test['distance'])),
-             label=r'distance (AUC = %0.2f)' % (AUCPR),
+             label=r'distance (AUC = %0.2f)' % (average_precision_score(ABC_test['Significant'], ABC_test['distance'])),
+             #label=r'distance (AUC = %0.2f)' % (AUCPR),
              lw=2, alpha=.8)
 
     plt.xlim([-0.05, 1.05])
