@@ -2,9 +2,11 @@
 set -uex
 
 DATADIR=data/Gasperini
+#DATADIR=data/Gasperini.newTFs
 CRISPRFILE=/data8/han_lab/mhan/abic/$DATADIR/Gasperini2019.at_scale_screen.cand_enhancer_x_exprsd_genes.200503.csv
 ABCOUTDIR=/data8/han_lab/mhan/ABC-Enhancer-Gene-Prediction.bak/Gasperini/ABC_output
 TFFILE=/data8/han_lab/mhan/abic/data/ucsc/encRegTfbsClusteredWithK562.hg19.bed
+#TFFILE=/data8/han_lab/mhan/abic/data/encodeTF2/consolidatedEncodeTFBS.bed
 awk -F"," '{print $3"\t"$4"\t"$5"\t"$2}' $CRISPRFILE  | sed 's/"//g' | awk -F":" 'NR>1 {print $1}' | sort -k1,1 -k2,2n -k3,3n | uniq > $DATADIR/Gasperini2019.enhancer.bed
 awk -F"," '{print $6"\t"$7-500"\t"$8+500"\t"$14"\t0\t"$10}' $CRISPRFILE | sed 's/"//g' | awk 'NR>1' | sort -k1,1 -k2,2n -k3,3n | uniq > $DATADIR/Gasperini2019.TSS.bed
 

@@ -394,7 +394,7 @@ class OuterFolds:
                 #pruner = optuna.pruners.MedianPruner(n_warmup_steps=5)
                 # xgb study
                 study_name = study_name_prefix+'.'+model+"."+str(outer_index)
-                optuna.delete_study(study_name=study_name, storage=storage) # if there is existing study remove.
+                #optuna.delete_study(study_name=study_name, storage=storage) # if there is existing study remove.
                 study = optuna.create_study(study_name=study_name, direction="maximize", storage=storage, pruner=pruner, load_if_exists=True)
 
 
