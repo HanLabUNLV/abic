@@ -2,9 +2,11 @@
 set -uex
 
 DATADIR=data/Fulco
+#DATADIR=data/Fulco.newTFs
 CRISPRFILE=/data8/han_lab/mhan/abic/${DATADIR}/Fulco2019.STable6a.tab
 ABCOUTDIR=/data8/han_lab/mhan/ABC-Enhancer-Gene-Prediction/example_fulco2019/ABC_output
 TFFILE=/data8/han_lab/mhan/abic/data/ucsc/encRegTfbsClusteredWithK562.hg19.bed
+#TFFILE=/data8/han_lab/mhan/abic/data/encodeTF2/consolidatedEncodeTFBS.bed
 
 
 awk -F"\t" '{print $1"\t"$2"\t"$3"\t"$4}' $CRISPRFILE | sort -k1,1 -k2,2n -k3,3n | uniq > ${DATADIR}/Fulco2019.enhancer.bed
@@ -43,11 +45,15 @@ python src/preprocess/overlap.fulco.py
 
 
 # calculate indirect ABC scores
-python -i src/network/calculate_abic.py  --netdir data/epgraph.Fulco.K562/ --dir data/Fulco --infile Fulco2019.CRISPR.ABC.TF.txt 
+#python -i src/network/calculate_abic.py  --netdir data/epgraph.Fulco.K562/ --dir data/Fulco --infile Fulco2019.CRISPR.ABC.TF.txt 
+
+
+# extract rows with genes that have at least 1 significant enhancer
+#python src/preprocess/atleast1sig.py --dir data/Fulco/ --infile Fulco2019.CRISPR.ABC.TF.erole.txt 
 
 
 # apply DR
-python src/preprocess/applynmf.py --dir data/Fulco --infile Fulco2019.CRISPR.ABC.TF.ABCpath.txt --NMFdir data/Gasperini/
+python src/preprocess/applynmf.py --dir data/Fulco --infile Fulco2019.CRISPR.ABC.TF.txt --NMFdir data/Gasperini/
 
 
 

@@ -54,7 +54,7 @@ python src/preprocess/groupbypos.py --dir data/Gasperini/ --infile Gasperini2019
 python src/preprocess/split_test_dr_fitnmf.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.txt
 
 # apply DR(NMF) to test
-python src/preprocess/applynmf.py --dir data/Gasperini --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt --NMFdir data/Gasperini/
+python src/preprocess/applynmf.py --dir data/Gasperini --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.beforeNMF.txt --NMFdir data/Gasperini/
 
 
 # split data by complexity 

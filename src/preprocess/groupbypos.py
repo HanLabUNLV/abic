@@ -13,7 +13,7 @@ import time
 
 def group_by_pos(arg_df):
   arg_df['midbin'] = round(arg_df[['startEnhancer', 'endEnhancer']].mean(axis=1)/1000000)
-  arg_df.sort_values(['startEnhancer', 'startTSS'], ascending=[True, True], inplace=True, ignore_index=True)
+  arg_df = arg_df.sort_values(['startEnhancer', 'startTSS'], ascending=[True, True])
   arg_df['group'] = 'NA'
   binshift = list(arg_df['midbin'].iloc[1:])
   binshift.append(binshift[len(binshift)-1])  
@@ -58,6 +58,7 @@ if __name__ == '__main__':
     chr_df = df_by_chr[chromosome].copy()
     new_chr_df = group_by_pos(chr_df)
     newdf = pd.concat([newdf, new_chr_df], axis=0)
+  newdf = newdf.loc[:,~newdf.columns.str.match("Unnamed")]
   newdf.to_csv(datadir+'/'+infile_base+".grouped.txt", sep="\t")
 
   if args.atleast1sig:
@@ -70,5 +71,6 @@ if __name__ == '__main__':
       chr_df = df_by_chr[chromosome].copy()
       new_chr_df = group_by_pos(chr_df)
       newdf = pd.concat([newdf, new_chr_df], axis=0)
+    newdf = newdf.loc[:,~newdf.columns.str.match("Unnamed")]
     newdf.to_csv(datadir+'/'+infile_base+".atleast1sig.grouped.txt", sep="\t")
 

@@ -21,19 +21,43 @@ Gasperini_atscale['pValueAdjusted'] = Gasperini_atscale['pValueAdjusted'].fillna
 
 ABC = pd.read_csv(data_dir+"ABC.EnhancerPredictionsAllPutative.txt", sep='\t')
 ABC_by_gene = ABC.groupby('TargetGene')
-ABC['Enhancer.count.near.TSS'] = ABC_by_gene[['hic_contact']].transform('count')
+ABC['Enhancer.count.near.TSS'] = ABC_by_gene[['TargetGene']].transform('count')
 ABC['mean.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('mean')
+ABC['std.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('std')
+ABC['std.contact.to.TSS'] = ABC['std.contact.to.TSS'].fillna(0)
+ABC['zscore.contact.to.TSS'] = (ABC['hic_contact'] - ABC['mean.contact.to.TSS']) / ABC['std.contact.to.TSS']
+ABC['zscore.contact.to.TSS'] = ABC['zscore.contact.to.TSS'].fillna(0)
 ABC['max.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('max')
 ABC['diff.from.max.contact.to.TSS'] = ABC['hic_contact']-ABC['max.contact.to.TSS']
 ABC['total.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('sum')
 ABC['remaining.enhancers.contact.to.TSS'] = ABC['total.contact.to.TSS'] - ABC['hic_contact']
 ABC_by_enhancer = ABC.groupby('name')
-ABC['TSS.count.near.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('count')
+ABC['TSS.count.near.enhancer'] = ABC_by_enhancer[['name']].transform('count')
 ABC['mean.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('mean')
+ABC['std.contact.from.enhancer'] = ABC_by_gene[['hic_contact']].transform('std')
+ABC['std.contact.from.enhancer'] = ABC['std.contact.from.enhancer'].fillna(0)
+ABC['zscore.contact.from.enhancer'] = (ABC['hic_contact'] - ABC['mean.contact.from.enhancer']) / ABC['std.contact.from.enhancer']
+ABC['zscore.contact.from.enhancer'] = ABC['zscore.contact.from.enhancer'].fillna(0)
 ABC['max.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('max')
 ABC['diff.from.max.contact.from.enhancer'] = ABC['hic_contact']-ABC['max.contact.from.enhancer']
 ABC['total.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('sum')
 ABC['remaining.TSS.contact.from.enhancer'] = ABC['total.contact.from.enhancer'] - ABC['hic_contact']
+# combined
+ABC['nearby.counts'] = ABC['Enhancer.count.near.TSS']+ABC['TSS.count.near.enhancer']
+ABC['mean.contact'] = ((ABC['Enhancer.count.near.TSS']*ABC['mean.contact.to.TSS'])+(ABC['TSS.count.near.enhancer']*ABC['mean.contact.from.enhancer'])) / (ABC['Enhancer.count.near.TSS']+ABC['TSS.count.near.enhancer'])
+q1 = (ABC['Enhancer.count.near.TSS']-1)*(ABC['std.contact.to.TSS'].pow(2)) + (ABC['Enhancer.count.near.TSS'])*(ABC['mean.contact.to.TSS'].pow(2))
+q2 = (ABC['Enhancer.count.near.TSS']-1)*(ABC['std.contact.from.enhancer'].pow(2)) + (ABC['Enhancer.count.near.TSS'])*(ABC['mean.contact.from.enhancer'].pow(2))
+qc = (q1 + q2) 
+meansq = (ABC['Enhancer.count.near.TSS']+ABC['TSS.count.near.enhancer'])*(ABC['mean.contact'].pow(2))
+denom = (ABC['Enhancer.count.near.TSS']+ABC['TSS.count.near.enhancer']-1)
+ABC['std.contact'] =  (( qc - meansq ) / denom).pow(1./2)
+ABC['zscore.contact'] = (ABC['hic_contact'] - ABC['mean.contact']) / ABC['std.contact']
+ABC['zscore.contact'] = ABC['zscore.contact'].fillna(0)
+ABC['max.contact'] = ABC[['max.contact.to.TSS', 'max.contact.from.enhancer']].max(axis=1)
+ABC['diff.from.max.contact'] = ABC['hic_contact']-ABC['max.contact']
+ABC['total.contact'] = ABC[['total.contact.to.TSS', 'total.contact.from.enhancer']].sum(axis=1)
+ABC['remaining.TSS.contact'] = ABC['total.contact'] - ABC['hic_contact']
+
 
 
 new = Gasperini_atscale["name"].str.split(":", n=1, expand=True)
@@ -167,6 +191,7 @@ Gasperini_atscale_ABC.to_csv(data_dir+"Gasperini2019.at_scale.ABC.TF.txt", sep='
 erole = pd.read_csv(data_dir+"Gasperini2019.at_scale.eroles.txt", sep="\t")
 Gasperini_atscale_ABC = pd.merge(Gasperini_atscale_ABC, erole, left_on=["name"], right_on=["name_x"])
 Gasperini_atscale_ABC.drop(Gasperini_atscale_ABC.filter(regex='_x$').columns, axis=1, inplace=True)
+Gasperini_atscale_ABC = Gasperini_atscale_ABC.loc[:,~Gasperini_atscale_ABC.columns.str.match("Unnamed")]
 Gasperini_atscale_ABC.to_csv(data_dir+"Gasperini2019.at_scale.ABC.TF.erole.txt", sep='\t')
 
 

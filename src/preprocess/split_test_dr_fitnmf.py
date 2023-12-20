@@ -34,7 +34,7 @@ def DR_NMF_features_fit(TFmatrix,outdir, study_name_prefix):
     nmf_model.fit(TFmatrix)
     joblib.dump(nmf_model, outdir+'/'+study_name_prefix+'.gz')
     W = nmf_model.transform(TFmatrix)
-    Wdf = pd.DataFrame(W, index=TFmatrix.index, columns =  ["TF_NMF_" + str(i+1) for i in range(n_components)])
+    Wdf = pd.DataFrame(W, index=TFmatrix.index, columns =  ["TF_NMF" + str(i+1) for i in range(n_components)])
     Wdf.to_csv(outdir+'/'+study_name_prefix+'.TF.W.txt', index=False, sep='\t')
     H = nmf_model.components_
     Hdf = pd.DataFrame(H, columns=TFmatrix.columns)
@@ -56,7 +56,7 @@ def DR_NMF_features_transform(TFmatrix, NMFdir, outdir, prefix):
     nmf_dump = NMFdir+'/'+prefix+'.gz'
     nmf_model = joblib.load(nmf_dump)
     W = nmf_model.transform(TFmatrix)
-    Wdf = pd.DataFrame(W, index=TFmatrix.index, columns =  ["TF_NMF_" + str(i+1) for i in range(nmf_model.n_components)])
+    Wdf = pd.DataFrame(W, index=TFmatrix.index, columns =  ["TF_NMF" + str(i+1) for i in range(nmf_model.n_components)])
     Wdf.to_csv(outdir+'/'+prefix+'.TF.W.txt', index=False, sep='\t')
     H = nmf_model.components_
     Hdf = pd.DataFrame(H, columns=TFmatrix.columns)
@@ -86,7 +86,7 @@ if __name__ == '__main__':
   # ABC
   data_dir = args.dir+'/'
   Gasperini_atscale_ABC = pd.read_csv(data_dir+args.infile, sep='\t')
-
+  Gasperini_atscale_ABC = Gasperini_atscale_ABC.loc[:,~Gasperini_atscale_ABC.columns.str.match("Unnamed")]
 
   # split train and test before DR.
   mask = np.isin(Gasperini_atscale_ABC['chr'], ['chr5','chr10','chr15','chr20']) # chromosomes for test dataset
@@ -101,27 +101,31 @@ if __name__ == '__main__':
 
 
   # fit DR on the train and apply to the test
-  enhancer_TF_pivot = pd.read_csv(data_dir+"Gasperini2019.enhancer.TF.txt", sep='\t', index_col='ID')
-  TSS_TF_pivot = pd.read_csv(data_dir+"Gasperini2019.TSS.TF.txt", sep='\t', index_col='gene')
+  #enhancer_TF_pivot = pd.read_csv(data_dir+"Gasperini2019.enhancer.TF.txt", sep='\t', index_col='ID')
+  #TSS_TF_pivot = pd.read_csv(data_dir+"Gasperini2019.TSS.TF.txt", sep='\t', index_col='gene')
 
-  e_TFfeatures =  Xtrain.loc[:,list(enhancer_TF_pivot.columns)]
+  e_TFfeatures = Xtrain.filter(regex='(_e)').copy()
+  #e_TFfeatures =  Xtrain.loc[:,list(enhancer_TF_pivot.columns)]
   NMFprefix='Gasperini2019.eTF.NMF'
-  pd.DataFrame(enhancer_TF_pivot.columns, columns=['TF']).to_csv(data_dir+NMFprefix+'.featureinput.txt', sep='\t')
+  #pd.DataFrame(enhancer_TF_pivot.columns, columns=['TF']).to_csv(data_dir+NMFprefix+'.featureinput.txt', sep='\t')
+  pd.DataFrame(e_TFfeatures.columns, columns=['TF']).to_csv(data_dir+NMFprefix+'.featureinput.txt', sep='\t')
   eTF_nmf_reduced_features = DR_NMF_features_fit(e_TFfeatures, data_dir, NMFprefix)
-  eTF_nmf_reduced_features = eTF_nmf_reduced_features.add_prefix('e')
+  eTF_nmf_reduced_features = eTF_nmf_reduced_features.add_suffix('_e')
 
-  TSS_TFfeatures =  Xtrain.loc[:,list(TSS_TF_pivot.columns)]
+  TSS_TFfeatures = Xtrain.filter(regex='(_TSS)').copy()
+  #TSS_TFfeatures =  Xtrain.loc[:,list(TSS_TF_pivot.columns)]
   NMFprefix='Gasperini2019.TSSTF.NMF'
-  pd.DataFrame(TSS_TF_pivot.columns, columns=['TF']).to_csv(data_dir+NMFprefix+'.featureinput.txt', sep='\t')
+  #pd.DataFrame(TSS_TF_pivot.columns, columns=['TF']).to_csv(data_dir+NMFprefix+'.featureinput.txt', sep='\t')
+  pd.DataFrame(TSS_TFfeatures.columns, columns=['TF']).to_csv(data_dir+NMFprefix+'.featureinput.txt', sep='\t')
   TSSTF_nmf_reduced_features = DR_NMF_features_fit(TSS_TFfeatures, data_dir, 'Gasperini2019.TSSTF.NMF')
-  TSSTF_nmf_reduced_features = TSSTF_nmf_reduced_features.add_prefix('TSS')
+  TSSTF_nmf_reduced_features = TSSTF_nmf_reduced_features.add_suffix('_TSS')
 
   Xtrain = pd.concat([Xtrain, eTF_nmf_reduced_features, TSSTF_nmf_reduced_features], axis=1)
   Xtrain.to_csv(data_dir+infile_base+".train.txt", sep='\t')
 
 
   # save test
-  Xtest.to_csv(data_dir+infile_base+".test.txt", sep='\t')
-  ytest.to_csv(data_dir+infile_base+".test.target.txt", sep='\t')
+  Xtest.to_csv(data_dir+infile_base+".beforeNMF.txt", sep='\t')
+  ytest.to_csv(data_dir+infile_base+".beforeNMF.target.txt", sep='\t')
 
 

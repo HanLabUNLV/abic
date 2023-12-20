@@ -11,7 +11,7 @@ from sklearn.decomposition import NMF
 
 # ABC
 data_dir = "data/Fulco/"
-gasperini_data_dir = "data/Gasperini"
+#data_dir = "data/Fulco.newTFs/"
 Fulco_enhancer = pd.read_csv(data_dir+"Fulco2019.enhancer.ABC.overlap.bed", sep='\t')
 Fulco_TSS = pd.read_csv(data_dir+"Fulco2019.TSS.ABC.overlap.bed", sep='\t')
 Fulco_crispr = pd.read_csv(data_dir+"Fulco2019.STable6a.tab", sep="\t")
@@ -20,19 +20,45 @@ Fulco_crispr['Adjusted p-value'] = Fulco_crispr['Adjusted p-value'].fillna(1)
 
 ABC = pd.read_csv(data_dir+"ABC.EnhancerPredictionsAllPutative.txt", sep='\t')
 ABC_by_gene = ABC.groupby('TargetGene')
-ABC['Enhancer.count.near.TSS'] = ABC_by_gene[['hic_contact']].transform('count')
+ABC['Enhancer.count.near.TSS'] = ABC_by_gene[['TargetGene']].transform('count')
 ABC['mean.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('mean')
+ABC['std.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('std')
+ABC['std.contact.to.TSS'] = ABC['std.contact.to.TSS'].fillna(0)
+ABC['zscore.contact.to.TSS'] = (ABC['hic_contact'] - ABC['mean.contact.to.TSS']) / ABC['std.contact.to.TSS']
+ABC['zscore.contact.to.TSS'] = ABC['zscore.contact.to.TSS'].fillna(0)
 ABC['max.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('max')
 ABC['diff.from.max.contact.to.TSS'] = ABC['hic_contact']-ABC['max.contact.to.TSS']
 ABC['total.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('sum')
 ABC['remaining.enhancers.contact.to.TSS'] = ABC['total.contact.to.TSS'] - ABC['hic_contact']
 ABC_by_enhancer = ABC.groupby('name')
-ABC['TSS.count.near.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('count')
+ABC['TSS.count.near.enhancer'] = ABC_by_enhancer[['name']].transform('count')
 ABC['mean.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('mean')
+ABC['std.contact.from.enhancer'] = ABC_by_gene[['hic_contact']].transform('std')
+ABC['std.contact.from.enhancer'] = ABC['std.contact.from.enhancer'].fillna(0)
+ABC['zscore.contact.from.enhancer'] = (ABC['hic_contact'] - ABC['mean.contact.from.enhancer']) / ABC['std.contact.from.enhancer']
+ABC['zscore.contact.from.enhancer'] = ABC['zscore.contact.from.enhancer'].fillna(0)
 ABC['max.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('max')
 ABC['diff.from.max.contact.from.enhancer'] = ABC['hic_contact']-ABC['max.contact.from.enhancer']
 ABC['total.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('sum')
 ABC['remaining.TSS.contact.from.enhancer'] = ABC['total.contact.from.enhancer'] - ABC['hic_contact']
+# combined
+ABC['nearby.counts'] = ABC['Enhancer.count.near.TSS']+ABC['TSS.count.near.enhancer']
+ABC['mean.contact'] = ((ABC['Enhancer.count.near.TSS']*ABC['mean.contact.to.TSS'])+(ABC['TSS.count.near.enhancer']*ABC['mean.contact.from.enhancer'])) / (ABC['Enhancer.count.near.TSS']+ABC['TSS.count.near.enhancer'])
+q1 = (ABC['Enhancer.count.near.TSS']-1)*(ABC['std.contact.to.TSS'].pow(2)) + (ABC['Enhancer.count.near.TSS'])*(ABC['mean.contact.to.TSS'].pow(2))
+q2 = (ABC['Enhancer.count.near.TSS']-1)*(ABC['std.contact.from.enhancer'].pow(2)) + (ABC['Enhancer.count.near.TSS'])*(ABC['mean.contact.from.enhancer'].pow(2))
+qc = (q1 + q2) 
+meansq = (ABC['Enhancer.count.near.TSS']+ABC['TSS.count.near.enhancer'])*(ABC['mean.contact'].pow(2))
+denom = (ABC['Enhancer.count.near.TSS']+ABC['TSS.count.near.enhancer']-1)
+ABC['std.contact'] =  (( qc - meansq ) / denom).pow(1./2)
+ABC['zscore.contact'] = (ABC['hic_contact'] - ABC['mean.contact']) / ABC['std.contact']
+ABC['zscore.contact'] = ABC['zscore.contact'].fillna(0)
+ABC['max.contact'] = ABC[['max.contact.to.TSS', 'max.contact.from.enhancer']].max(axis=1)
+ABC['diff.from.max.contact'] = ABC['hic_contact']-ABC['max.contact']
+ABC['total.contact'] = ABC[['total.contact.to.TSS', 'total.contact.from.enhancer']].sum(axis=1)
+ABC['remaining.TSS.contact'] = ABC['total.contact'] - ABC['hic_contact']
+
+
+
 
 new = Fulco_enhancer["G.id"].str.split("|", n=1, expand=True)
 Fulco_enhancer["G.class"]=new[0]
@@ -121,10 +147,18 @@ Fulco_crispr_ABC_max['Significant'] = Fulco_crispr_ABC_max['Significant'].astype
 Fulco_crispr_ABC_max.to_csv(data_dir+"Fulco2019.CRISPR.ABC.max.innerjoin.txt", sep='\t')
 
 
+#at least one significant
+Fulco_crispr_ABC = pd.read_csv(data_dir+"Fulco2019.CRISPR.ABC.sum.innerjoin.txt", sep='\t')
+Fulco_ABC_by_gene = Fulco_crispr_ABC.groupby('G.id', as_index=False)
+Fulco_ABC_by_gene_sig = Fulco_ABC_by_gene['Significant'].any()
+Fulco_ABC_by_gene_sig= Fulco_ABC_by_gene_sig.rename(columns={'Significant': 'atleast1Sig'})
+Fulco_crispr_ABC = pd.merge(Fulco_crispr_ABC, Fulco_ABC_by_gene_sig, on=['G.id'], how='inner')
+Fulco_crispr_ABC.to_csv(data_dir+"Fulco2019.CRISPR.ABC.sum.innerjoin.txt", sep='\t')
+
 
 # K562 TF
 Fulco_crispr_ABC = pd.read_csv(data_dir+"Fulco2019.CRISPR.ABC.sum.innerjoin.txt", sep='\t')
-enhancer_TF = pd.read_csv(data_dir+"Fulco2019.enhancer.TF.overlap.bed", sep="\t", names=['chr', 'start', 'end', 'ID', 'chr.TF', 'start.TF', 'end.TF', 'TF', 'score', 'celltype', 'score2'], header=None)  
+enhancer_TF = pd.read_csv(data_dir+"Fulco2019.enhancer.TF.overlap.bed", sep="\t", names=['chr', 'start', 'end', 'type', 'ID', 'chr.TF', 'start.TF', 'end.TF', 'TF', 'score', 'celltype', 'score2'], header=None)  
 enhancer_TF['count'] = 1
 enhancer_TF_pivot = enhancer_TF.pivot_table(index='ID', columns = 'TF', values='count', aggfunc=np.sum, fill_value=0)  
 
@@ -165,6 +199,8 @@ Fulco_crispr_ABC.to_csv(data_dir+"Fulco2019.CRISPR.ABC.TF.txt", sep='\t')
 # significant.negative
 Fulco_crispr_ABC.rename(columns={'Significant':'Sig.pos.neg'}, inplace=True)
 Fulco_crispr_ABC['Significant'] = Fulco_crispr_ABC['Sig.pos.neg'] & (Fulco_crispr_ABC['Fraction change in gene expr'] < 0)
+Fulco_crispr_ABC = Fulco_crispr_ABC.loc[:,~Fulco_crispr_ABC.columns.str.match("Unnamed")]
+Fulco_crispr_ABC.reset_index(drop=True)
 Fulco_crispr_ABC.to_csv(data_dir+"Fulco2019.CRISPR.ABC.TF.txt", sep='\t')
 
 # erole

@@ -23,7 +23,7 @@ def DR_NMF_features_transform(TFmatrix, NMF_dir, data_dir, NMFprefix):
     nmf_dump = NMF_dir+'/'+NMFprefix+'.gz'
     nmf_model = joblib.load(nmf_dump)
     W = nmf_model.transform(TFmatrix)
-    Wdf = pd.DataFrame(W, index=TFmatrix.index, columns =  ["TF_NMF_" + str(i+1) for i in range(nmf_model.n_components)])
+    Wdf = pd.DataFrame(W, index=TFmatrix.index, columns =  ["TF_NMF" + str(i+1) for i in range(nmf_model.n_components)])
     #Wdf.to_csv(data_dir+'/'+NMFprefix+'.TF.W.txt', index=False, sep='\t')
     H = nmf_model.components_
     Hdf = pd.DataFrame(H, columns=TFmatrix.columns)
@@ -49,13 +49,14 @@ if __name__ == '__main__':
   args = parser.parse_args()
 
   infile_base = os.path.splitext(args.infile)[0]
+  infile_base = infile_base.removesuffix('.beforeNMF')
   infile_base = infile_base.removesuffix('.test')
 
 
   # ABC
   data_dir = args.dir+'/'
   NMF_dir = args.NMFdir+'/'
-  Xtest = pd.read_csv(data_dir+args.infile, sep='\t')
+  Xtest = pd.read_csv(data_dir+args.infile, sep='\t', index_col=0)
   ytest = Xtest['Significant'] 
 
 
@@ -69,7 +70,7 @@ if __name__ == '__main__':
   e_TFfeatures = e_TFfeatures[eNMFinputfeatures['TF']]
   e_TFfeatures = e_TFfeatures.fillna(0)
   eTF_nmf_reduced_features = DR_NMF_features_transform(e_TFfeatures, NMF_dir, data_dir, NMFprefix)
-  eTF_nmf_reduced_features = eTF_nmf_reduced_features.add_prefix('e')
+  eTF_nmf_reduced_features = eTF_nmf_reduced_features.add_suffix('_e')
 
   TSS_TFfeatures = Xtest.filter(regex='(_TSS)').copy()
   NMFprefix='Gasperini2019.TSSTF.NMF'
@@ -79,9 +80,10 @@ if __name__ == '__main__':
     TSS_TFfeatures[TF] = 0 
   TSS_TFfeatures = TSS_TFfeatures[TSSNMFinputfeatures['TF']]
   TSSTF_nmf_reduced_features = DR_NMF_features_transform(TSS_TFfeatures, NMF_dir, data_dir, NMFprefix)
-  TSSTF_nmf_reduced_features = TSSTF_nmf_reduced_features.add_prefix('TSS')
+  TSSTF_nmf_reduced_features = TSSTF_nmf_reduced_features.add_suffix('_TSS')
 
   Xtest = pd.concat([Xtest, eTF_nmf_reduced_features, TSSTF_nmf_reduced_features], axis=1)
+  Xtest = Xtest.loc[:,~Xtest.columns.str.match("Unnamed")]
   Xtest.to_csv(data_dir+infile_base+".test.txt", sep='\t')
   ytest.to_csv(data_dir+infile_base+".test.target.txt", sep='\t')
 
