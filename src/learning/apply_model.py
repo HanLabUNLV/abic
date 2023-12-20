@@ -50,7 +50,7 @@ if __name__ == "__main__":
   outdir = args.outdir
   scalerfile = args.scalerfile
   modelfile = args.modelfile
-  features = args.features
+  featurefile = args.features
   targets = args.targets
   prefix = Path(modelfile).stem
   Path(outdir).mkdir(parents=True, exist_ok=True)
@@ -61,42 +61,50 @@ if __name__ == "__main__":
   #import our data, then format it #
   ##################################
 
-  X_test = pd.read_csv(features, sep='\t', index_col=0)
+  X_test = pd.read_csv(featurefile, sep='\t', index_col=0)
   X_test = X_test.loc[:,~X_test.columns.str.match("Unnamed")]
 
   # same feature engineering as training
   ActivityFeatures = X_test[['ABC.id', 'normalized_h3K27ac', 'normalized_h3K4me3', 'normalized_h3K27me3', 'normalized_dhs', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile', 'TargetGeneIsExpressed', 'distance', 'H3K27ac.RPKM.quantile.TSS1Kb', 'H3K4me3.RPKM.quantile.TSS1Kb', 'H3K27me3.RPKM.quantile.TSS1Kb']].copy()
   ActivityFeatures = ActivityFeatures.dropna()
   ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
-  hicfeatures = X_test[['hic_contact', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'diff.from.max.contact.to.TSS', 'total.contact.to.TSS', 'remaining.enhancers.contact.to.TSS', 'TSS.count.near.enhancer', 'mean.contact.from.enhancer', 'diff.from.max.contact.from.enhancer', 'total.contact.from.enhancer', 'remaining.TSS.contact.from.enhancer']].copy()
+  hicfeatures = X_test[['hic_contact', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'zscore.contact.to.TSS', 'diff.from.max.contact.to.TSS', 'total.contact.to.TSS', 'remaining.enhancers.contact.to.TSS', 'TSS.count.near.enhancer', 'mean.contact.from.enhancer', 'zscore.contact.from.enhancer', 'diff.from.max.contact.from.enhancer', 'total.contact.from.enhancer', 'remaining.TSS.contact.from.enhancer', 'nearby.counts', 'mean.contact', 'zscore.contact', 'diff.from.max.contact', 'total.contact']].copy()
   hicfeatures = hicfeatures.dropna()
   TFfeatures = X_test.filter(regex='(_e)|(_TSS)|(NMF)').copy()
   TFfeatures = TFfeatures.dropna()
 
+  # merge features
   features = ActivityFeatures.copy()
   features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
   features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
   data = features.copy()
+
   ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
   hicfeatures = data.iloc[:, ActivityFeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]]
   TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
-  Xtest = features
+  X_test = data
 
 
-
-
-  y_test = pd.read_csv(targets, sep='\t', index_col=None)
+  y_test = pd.read_csv(targets, sep='\t', index_col=0)
   y_test = y_test.loc[:,~y_test.columns.str.match("Unnamed")]
+  y_test = y_test.filter(items=data.index,axis=0)
   y_test = y_test['Significant'].astype(int)
   print(y_test)
   print(str(sum(y_test))+'/'+str(len(y_test)))
 
 
+
   # load preprocessor 
   scaler = joblib.load(scalerfile)
-  features = scaler.get_feature_names_out()
-  print(features)
-  X_test = X_test.reindex(columns = scaler.get_feature_names_out())
+  featurenames = scaler.get_feature_names_out()
+  featurenames = np.insert(featurenames, 0, 'ABC.id', axis=0)
+  print(featurenames)
+  X_test = X_test.reindex(columns = featurenames)
+  # save features
+  X_test.to_csv(outdir+'/Xfeatures.'+prefix+'.txt', sep='\t')
+  y_test.to_csv(outdir+'/ytarget.'+prefix+'.txt', sep='\t')
+  X_test = X_test.drop(columns = ['ABC.id'])
+  # transform by scaling
   X_test = pd.DataFrame(scaler.transform(X_test), columns = X_test.columns)
   print(X_test.columns)
 
@@ -115,8 +123,9 @@ if __name__ == "__main__":
   featurenames = pd.DataFrame({"features":lst_vars_in_model})
   print(featurenames)
   X_test = X_test.reindex(columns = featurenames['features'])
-  X_test.to_csv(outdir+'/Xfeatures.'+prefix+'.txt', index=False, sep='\t')
-  y_test.to_csv(outdir+'/ytarget.'+prefix+'.txt', index=False, sep='\t')
+
+  assert not X_test.isnull().values.any()
+
      
  
   dtest = xgb.DMatrix(X_test) 
@@ -125,7 +134,7 @@ if __name__ == "__main__":
   y_pred = [round(value) for value in y_pred_prob]
   test_pd = pd.DataFrame({'y_pred':y_pred, 'y_prob':y_pred_prob}, index=y_test.index)
   y_res = pd.merge(y_test, test_pd, left_index=True, right_index=True)
-  y_res.to_csv(outdir+'/confusion.'+prefix+'.txt', index=False, sep='\t')
+  y_res.to_csv(outdir+'/confusion.'+prefix+'.txt', sep='\t')
 
 
   # Data to plot precision - recall curve
@@ -134,7 +143,7 @@ if __name__ == "__main__":
   #print(recall)
   pr = pd.DataFrame({'precision':precision,'recall':recall,'threshold':np.append(thresholds,None)})
   outfile = os.path.basename(targets)
-  pr.to_csv(outdir+'/pr_curve.'+prefix+'.txt', index=False, sep='\t')
+  pr.to_csv(outdir+'/pr_curve.'+prefix+'.txt', sep='\t')
 
   aucpr = auc(recall, precision)
   average_precision = average_precision_score(y_test, y_pred_prob)

@@ -7,4 +7,8 @@ bash src/learning/opt2pass.sh
 python src/learning/learning.py --dir data/Gasperini/ --outdir run.all --port 17203 --studyname all.2pass --test
 bash src/learning/apply_model.sh
 
-python -i src/learning/runshap.py --modeldir run.all/ --studyname all.2pass --outdir apply.all/shap
+python src/learning/runshap.py --modeldir run.all/ --studyname all.2pass --outdir apply.all/shap
+
+python src/learning/plotprcurve.py --traindir run.all --testdir apply.all/Fulco/ --studyname all --testname Fulco
+python src/learning/plotprcurve.py --traindir run.all --testdir apply.all/Gasperini/ --studyname all --testname chr5,10,15,20
+

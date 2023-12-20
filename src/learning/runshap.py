@@ -247,7 +247,7 @@ if __name__ == "__main__":
 
   # plot dependency for top features 
   shap_order = shap_pandas.abs().mean().sort_values(ascending=[False])
-  for i in range(0,25):
+  for i in range(0,40):
     for j in range(0,25):
       fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
       shap.dependence_plot(shap_order.index[i], shap_values=shap_values, features=X, interaction_index=shap_order.index[j])

@@ -73,7 +73,7 @@ class Objective:
       # use exact for small featuresset.
       "tree_method": "auto",
       # n_estimator
-      "num_boost_round": trial.suggest_int("num_boost_round", 50, 500),
+      "num_boost_round": trial.suggest_int("num_boost_round", 50, 300),
       # defines booster
       "booster": trial.suggest_categorical("booster", ["gbtree"]),
       #"booster": trial.suggest_categorical("booster", ["dart"]),
@@ -96,7 +96,7 @@ class Objective:
       # L1 regularization weight.
       "alpha": trial.suggest_float("alpha", 1e-4, 0.2, log=True),
       # defines how selective algorithm is.
-      "gamma": trial.suggest_float("gamma", 10, 20),
+      "gamma": trial.suggest_float("gamma", 10, 14),
       #"grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
       "scale_pos_weight": self.cls_weight,
       "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
@@ -634,13 +634,13 @@ class OuterFolds:
                 test_pd = pd.DataFrame({'y_pred':y_pred, 'y_prob':y_pred_prob}, index=y_test.index)
                 y_res = pd.merge(y_test, test_pd, left_index=True, right_index=True)
                 #res = pd.merge(y_res, X_test, left_index=True, right_index=True)
-                y_res.to_csv(self.outdir+'/'+self.study_name_prefix+'.confusion.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
+                y_res.to_csv(self.outdir+'/'+self.study_name_prefix+'.confusion.'+classifier+'.'+str(outer_index)+'.txt', sep='\t')
                 # Data to plot precision - recall curve
                 precision, recall, thresholds = precision_recall_curve(y_test, y_pred_prob, pos_label = 1)
                 print(precision)
                 print(recall)
                 pr = pd.DataFrame({'precision':precision,'recall':recall,'thresholds':np.append(thresholds,None)})
-                pr.to_csv(self.outdir+'/'+self.study_name_prefix+'.pr_curve.'+classifier+'.'+str(outer_index)+'.txt', index=False, sep='\t')
+                pr.to_csv(self.outdir+'/'+self.study_name_prefix+'.pr_curve.'+classifier+'.'+str(outer_index)+'.txt', sep='\t')
  
                 aucpr = auc(recall, precision)
                 average_precision = average_precision_score(y_test, y_pred_prob)
@@ -749,7 +749,7 @@ if __name__ == "__main__":
       if infile is None:
         print( "--infile is required to run the --init process")
         quit()
-      data2 = pd.read_csv(base_directory+'/'+infile,sep='\t', header=0)
+      data2 = pd.read_csv(base_directory+'/'+infile,sep='\t', header=0, index_col=0)
       data2 = data2.loc[:,~data2.columns.str.match("Unnamed")]
       if (args.e1):
         data2 = data2.loc[data2['e1']==1,]
@@ -766,7 +766,7 @@ if __name__ == "__main__":
       ActivityFeatures = features_gasperini[['ABC.id', 'normalized_h3K27ac', 'normalized_h3K4me3', 'normalized_h3K27me3', 'normalized_dhs', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile', 'TargetGeneIsExpressed', 'distance', 'H3K27ac.RPKM.quantile.TSS1Kb', 'H3K4me3.RPKM.quantile.TSS1Kb', 'H3K27me3.RPKM.quantile.TSS1Kb']].copy()
       ActivityFeatures = ActivityFeatures.dropna()
       ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
-      hicfeatures = features_gasperini[['hic_contact', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'diff.from.max.contact.to.TSS', 'total.contact.to.TSS', 'remaining.enhancers.contact.to.TSS', 'TSS.count.near.enhancer', 'mean.contact.from.enhancer', 'diff.from.max.contact.from.enhancer', 'total.contact.from.enhancer', 'remaining.TSS.contact.from.enhancer']].copy()
+      hicfeatures = features_gasperini[['hic_contact', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'zscore.contact.to.TSS', 'diff.from.max.contact.to.TSS', 'total.contact.to.TSS', 'remaining.enhancers.contact.to.TSS', 'TSS.count.near.enhancer', 'mean.contact.from.enhancer', 'zscore.contact.from.enhancer', 'diff.from.max.contact.from.enhancer', 'total.contact.from.enhancer', 'remaining.TSS.contact.from.enhancer', 'nearby.counts', 'mean.contact', 'zscore.contact', 'diff.from.max.contact', 'total.contact']].copy()
       #hicfeatures = features_gasperini[['hic_contact', 'hic_contact_pl_scaled_adj', 'ABC.Score.Numerator.sum', 'ABC.Score.otherenhancers']].copy()
       hicfeatures = hicfeatures.dropna()
       TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)|(NMF)').copy()
@@ -797,6 +797,7 @@ if __name__ == "__main__":
       #features.drop(columns=['ABC.Score'], axis=1, inplace=True)
       featurelabels = pd.DataFrame({"features":features.columns})
       featurelabels.to_csv(outdir+'/'+study_name_prefix+'.featurelabels.txt', index=False, sep='\t')
+      features_gasperini.filter(items = data.index,axis=0).to_csv(outdir+'/'+study_name_prefix+'.learninginput.txt', sep='\t')
 
       X = features
       y = target
