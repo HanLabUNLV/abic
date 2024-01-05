@@ -21,7 +21,7 @@ def prcurve_from_file(pr_filename, confusion_filename, y_real, y_proba, colornam
     y_proba.append(confusion['y_prob'])
 
 
-def ABC_predict(inputfile, inputindex=None):
+def ABC_predict(inputfile, threshold=0.022, inputindex=None):
     ABC_pd = pd.read_csv(inputfile, sep="\t", index_col=0)
     if inputindex is not None:
       ABC_index = pd.read_csv(inputindex, sep="\t", index_col=0).index
@@ -32,7 +32,7 @@ def ABC_predict(inputfile, inputindex=None):
     y = ABC_pd['Significant'].astype(int)
     ABC_test = pd.concat([y, distance, ABC_score], axis=1)
 
-    ABC_test['y_pred'] = ABC_test['ABC.Score'] > 0.022
+    ABC_test['y_pred'] = ABC_test['ABC.Score'] > threshold
     ABC_test['y_pred'] = ABC_test['y_pred'].astype(int)
     return ABC_test
 
@@ -107,19 +107,36 @@ if __name__ == "__main__":
 
   ABC_cv = pd.DataFrame()
   for i in range(4):
-      ABC_fold = ABC_predict(train_inputfile, Xfeatures_cv[i])
+      ABC_fold = ABC_predict(train_inputfile, inputindex=Xfeatures_cv[i])
       ABC_cv = pd.concat([ABC_cv, ABC_fold]) 
 
   ABC_cv = ABC_cv[['Significant','y_pred', 'ABC.Score', 'distance']]
-  ABC_cv.to_csv('ABC.gasperini.outerCV.confusion.txt', sep='\t')
+  ABC_cv.to_csv('ABC.gasperini.outerCV.default.confusion.txt', sep='\t')
 
-  ABC_cv = ABC_cv.dropna()
   precision, recall, thresholds = precision_recall_curve(ABC_cv['Significant'], ABC_cv['ABC.Score'])
   AUCPR=auc(recall, precision)
+  # convert to f score
+  fscore = (2 * precision * recall) / (precision + recall)
+  # locate the index of the largest f score
+  ix = np.argmax(fscore)
+
+  print('Best ABC (CV) Threshold=%f, F-Score=%.3f' % (thresholds[ix], fscore[ix]))
+
+  ABC_cv = pd.DataFrame()
+  for i in range(4):
+      ABC_fold = ABC_predict(train_inputfile, threshold=0.06848, inputindex=Xfeatures_cv[i])
+      ABC_cv = pd.concat([ABC_cv, ABC_fold]) 
+
+  ABC_cv = ABC_cv[['Significant','y_pred', 'ABC.Score', 'distance']]
+  ABC_cv.to_csv('ABC.gasperini.outerCV.best.confusion.txt', sep='\t')
+
+
+  ABC_cv = ABC_cv.dropna()
   plt.plot(recall, precision, color='green',
            label=r'ABC_score(outer fold data) (AUC = %0.2f)' % (average_precision_score(ABC_cv['Significant'], ABC_cv['ABC.Score'])),
            #label=r'ABC_score (AUC = %0.2f)' % (AUCPR),
            lw=2, alpha=.8)
+  plt.scatter(recall[ix], precision[ix], marker='o', color='black', label='Best ABC (CV) Threshold=%f' % (thresholds[ix]))
 
   precision, recall, thresholds = precision_recall_curve(ABC_cv['Significant'], ABC_cv['distance'])
   AUCPR=auc(recall, precision)
@@ -167,16 +184,27 @@ if __name__ == "__main__":
 
   ABC_test = ABC_predict(test_inputfile)
   ABC_test = ABC_test[['Significant','y_pred', 'ABC.Score', 'distance']]
-  ABC_test.to_csv('ABC.test.'+testname+'.confusion.txt', sep='\t')
+  ABC_test.to_csv('ABC.test.'+testname+'.default.confusion.txt', sep='\t')
 
-  ABC_test = ABC_test.dropna()
   precision, recall, thresholds = precision_recall_curve(ABC_test['Significant'], ABC_test['ABC.Score'])
   AUCPR=auc(recall, precision)
   avgPrecision = average_precision_score(ABC_test['Significant'], ABC_test['ABC.Score'])
+  # convert to f score
+  fscore = (2 * precision * recall) / (precision + recall)
+  # locate the index of the largest f score
+  ix = np.argmax(fscore)
+  print('Best ABC (test) Threshold=%f, F-Score=%.3f' % (thresholds[ix], fscore[ix]))
+
+  ABC_test = ABC_predict(test_inputfile, threshold=thresholds[ix])
+  ABC_test = ABC_test[['Significant','y_pred', 'ABC.Score', 'distance']]
+  ABC_test.to_csv('ABC.test.'+testname+'.best.confusion.txt', sep='\t')
+
+  ABC_test = ABC_test.dropna()
   plt.plot(recall, precision, color='green',
            label=r'ABC_score: %s (AUC = %0.2f)' % (testname, avgPrecision),
            #label=r'ABC_score (AUC = %0.2f)' % (AUCPR),
            lw=2, alpha=.8)
+  plt.scatter(recall[ix], precision[ix], marker='o', color='black', label='Best ABC (test) Threshold=%f' % (thresholds[ix]))
 
   precision, recall, thresholds = precision_recall_curve(ABC_test['Significant'], ABC_test['distance'])
   AUCPR=auc(recall, precision)

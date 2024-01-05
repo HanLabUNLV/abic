@@ -43,8 +43,6 @@ python src/preprocess/overlap.gasperini.py
 # calculate indirect ABC scores
 #python src/network/calculate_abic.py  --netdir data/epgraph.Gasperini.K562/ --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.txt  
 
-# extract rows with genes that have at least 1 significant enhancer
-#python src/preprocess/atleast1sig.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.ABCpath.txt 
 
 # group by chromosomal position for groupCV
 python src/preprocess/groupbypos.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.txt 
@@ -55,6 +53,11 @@ python src/preprocess/split_test_dr_fitnmf.py --dir data/Gasperini/ --infile Gas
 
 # apply DR(NMF) to test
 python src/preprocess/applynmf.py --dir data/Gasperini --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.beforeNMF.txt --NMFdir data/Gasperini/
+
+
+
+# extract rows with genes that have at least 1 significant enhancer
+python src/preprocess/atleast1sig.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.test.txt 
 
 
 # split data by complexity 
