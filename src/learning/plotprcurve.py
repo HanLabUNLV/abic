@@ -101,7 +101,7 @@ if __name__ == "__main__":
   precision, recall, _ = precision_recall_curve(y_real_cv, y_proba_cv)
   AUCPR=auc(recall, precision)
   plt.plot(recall, precision, color='blue',
-           label=r'Test(outer fold CV) (AUC = %0.2f)' % (average_precision_score(y_real_cv, y_proba_cv)),
+           label=r'XGB Test(outer fold CV) (AUC = %0.2f)' % (average_precision_score(y_real_cv, y_proba_cv)),
            #label=r'Test(outer fold CV) (AUC = %0.2f)' % (AUCPR),
            lw=2, alpha=.8)
 
@@ -111,16 +111,16 @@ if __name__ == "__main__":
       ABC_cv = pd.concat([ABC_cv, ABC_fold]) 
 
   ABC_cv = ABC_cv[['Significant','y_pred', 'ABC.Score', 'distance']]
-  ABC_cv.to_csv('ABC.gasperini.outerCV.default.confusion.txt', sep='\t')
+  ABC_cv.to_csv(test_dir+'/ABC.gasperini.outerCV.default.confusion.txt', sep='\t')
 
   precision, recall, thresholds = precision_recall_curve(ABC_cv['Significant'], ABC_cv['ABC.Score'])
   AUCPR=auc(recall, precision)
   # convert to f score
-  fscore = (2 * precision * recall) / (precision + recall)
-  # locate the index of the largest f score
-  ix = np.argmax(fscore)
-
-  print('Best ABC (CV) Threshold=%f, F-Score=%.3f' % (thresholds[ix], fscore[ix]))
+#  fscore = (2 * precision * recall) / (precision + recall)
+#  # locate the index of the largest f score
+#  ix = np.argmax(fscore)
+#
+#  print('Best ABC (CV) Threshold=%f, F-Score=%.3f' % (thresholds[ix], fscore[ix]))
 
   ABC_cv = pd.DataFrame()
   for i in range(4):
@@ -128,7 +128,7 @@ if __name__ == "__main__":
       ABC_cv = pd.concat([ABC_cv, ABC_fold]) 
 
   ABC_cv = ABC_cv[['Significant','y_pred', 'ABC.Score', 'distance']]
-  ABC_cv.to_csv('ABC.gasperini.outerCV.best.confusion.txt', sep='\t')
+  ABC_cv.to_csv(test_dir+'/ABC.gasperini.outerCV.best.confusion.txt', sep='\t')
 
 
   ABC_cv = ABC_cv.dropna()
@@ -136,7 +136,7 @@ if __name__ == "__main__":
            label=r'ABC_score(outer fold data) (AUC = %0.2f)' % (average_precision_score(ABC_cv['Significant'], ABC_cv['ABC.Score'])),
            #label=r'ABC_score (AUC = %0.2f)' % (AUCPR),
            lw=2, alpha=.8)
-  plt.scatter(recall[ix], precision[ix], marker='o', color='black', label='Best ABC (CV) Threshold=%f' % (thresholds[ix]))
+  #plt.scatter(recall[ix], precision[ix], marker='o', color='black', label='Best ABC (CV) Threshold=%f' % (thresholds[ix]))
 
   precision, recall, thresholds = precision_recall_curve(ABC_cv['Significant'], ABC_cv['distance'])
   AUCPR=auc(recall, precision)
@@ -153,7 +153,7 @@ if __name__ == "__main__":
   plt.legend(loc="upper right")
   plt.show()
 
-  plt.savefig('prcurve.outerCV.pdf')
+  plt.savefig(test_dir+'/prcurve.outerCV.pdf')
   plt.close()
 
 
@@ -177,14 +177,14 @@ if __name__ == "__main__":
   AUCPR=auc(recall, precision)
   avgPrecision = average_precision_score(y_real_test, y_proba_test)
   plt.plot(recall, precision, color='red',
-           label=r'Test: %s (AUC = %0.2f)' % (testname, avgPrecision),
+           label=r'XGB Test: %s (AUC = %0.2f)' % (testname, avgPrecision),
            #label=r'Test: %s (AUC = %0.2f)' % (AUCPR),
            lw=2, alpha=.8)
 
 
   ABC_test = ABC_predict(test_inputfile)
   ABC_test = ABC_test[['Significant','y_pred', 'ABC.Score', 'distance']]
-  ABC_test.to_csv('ABC.test.'+testname+'.default.confusion.txt', sep='\t')
+  ABC_test.to_csv(test_dir+'/ABC.test.'+testname+'.default.confusion.txt', sep='\t')
 
   precision, recall, thresholds = precision_recall_curve(ABC_test['Significant'], ABC_test['ABC.Score'])
   AUCPR=auc(recall, precision)
@@ -197,7 +197,7 @@ if __name__ == "__main__":
 
   ABC_test = ABC_predict(test_inputfile, threshold=thresholds[ix])
   ABC_test = ABC_test[['Significant','y_pred', 'ABC.Score', 'distance']]
-  ABC_test.to_csv('ABC.test.'+testname+'.best.confusion.txt', sep='\t')
+  ABC_test.to_csv(test_dir+'/ABC.test.'+testname+'.best.confusion.txt', sep='\t')
 
   ABC_test = ABC_test.dropna()
   plt.plot(recall, precision, color='green',
@@ -223,7 +223,7 @@ if __name__ == "__main__":
   plt.legend(loc="upper right")
   plt.show()
 
-  plt.savefig('prcurve.test.'+testname+'.pdf')
+  plt.savefig(test_dir+'/prcurve.test.'+testname+'.pdf')
   plt.close()
 
 
