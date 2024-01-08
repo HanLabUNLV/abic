@@ -1,12 +1,5 @@
 import pandas as pd
 import numpy as np
-import joblib
-from sklearn.decomposition import NMF
-
-
-
-
-
 
 
 # ABC
@@ -100,6 +93,11 @@ Fulco_enhancer.to_csv(data_dir+"Fulco_enhancer.txt", sep='\t')
 Fulco_crispr2 = pd.merge(Fulco_crispr, Fulco_enhancer, left_on=["enhancerID"], right_on=["G.id"], suffixes=('', '_y'))
 Fulco_crispr2.drop(Fulco_crispr2.filter(regex='_y$').columns, axis=1, inplace=True)
 Fulco_crispr2["ABC.id"] = Fulco_crispr2["ABC.id"] + "_" + Fulco_crispr2["Gene"]
+# significant.negative
+Fulco_crispr2.rename(columns={'Significant':'Sig.pos.neg'}, inplace=True)
+Fulco_crispr2['Significant'] = Fulco_crispr2['Sig.pos.neg'] & (Fulco_crispr2['Fraction change in gene expr'] < 0)
+Fulco_crispr2 = Fulco_crispr2.loc[:,~Fulco_crispr2.columns.str.match("Unnamed")]
+Fulco_crispr2.reset_index(drop=True)
 Fulco_crispr2.to_csv(data_dir+"Fulco2019.CRISPR2.txt", sep='\t')
 
 ABC_gene = pd.read_csv(data_dir+"GeneList.txt", sep="\t")
@@ -116,8 +114,6 @@ ABC = pd.merge(ABC, ABC_gene_H3K4me3, left_on=["TargetGene"], right_on=["name"],
 ABC.drop(ABC.filter(regex='_y$').columns, axis=1, inplace=True)
 ABC = pd.merge(ABC, ABC_gene_H3K27me3, left_on=["TargetGene"], right_on=["name"], suffixes=('', '_y'))
 ABC.drop(ABC.filter(regex='_y$').columns, axis=1, inplace=True)
-
-
 
 Fulco_crispr2.to_csv(data_dir+"Fulco_crispr2.txt", sep='\t')
 ABC.to_csv(data_dir+"ABC.txt", sep='\t')
@@ -149,11 +145,13 @@ Fulco_crispr_ABC_max.to_csv(data_dir+"Fulco2019.CRISPR.ABC.max.innerjoin.txt", s
 
 #at least one significant
 Fulco_crispr_ABC = pd.read_csv(data_dir+"Fulco2019.CRISPR.ABC.sum.innerjoin.txt", sep='\t')
-Fulco_ABC_by_gene = Fulco_crispr_ABC.groupby('G.id', as_index=False)
+Fulco_ABC_by_gene = Fulco_crispr_ABC.groupby('Gene', as_index=False)
 Fulco_ABC_by_gene_sig = Fulco_ABC_by_gene['Significant'].any()
 Fulco_ABC_by_gene_sig= Fulco_ABC_by_gene_sig.rename(columns={'Significant': 'atleast1Sig'})
-Fulco_crispr_ABC = pd.merge(Fulco_crispr_ABC, Fulco_ABC_by_gene_sig, on=['G.id'], how='inner')
+Fulco_crispr_ABC = pd.merge(Fulco_crispr_ABC, Fulco_ABC_by_gene_sig, on=['Gene'], how='inner')
 Fulco_crispr_ABC.to_csv(data_dir+"Fulco2019.CRISPR.ABC.sum.innerjoin.txt", sep='\t')
+
+
 
 
 # K562 TF
@@ -196,17 +194,9 @@ Fulco_crispr_ABC.loc[:,list(TFcolumns)] = Fulco_crispr_ABC.loc[:,list(TFcolumns)
 Fulco_crispr_ABC.to_csv(data_dir+"Fulco2019.CRISPR.ABC.TF.txt", sep='\t')
 
 
-# significant.negative
-Fulco_crispr_ABC.rename(columns={'Significant':'Sig.pos.neg'}, inplace=True)
-Fulco_crispr_ABC['Significant'] = Fulco_crispr_ABC['Sig.pos.neg'] & (Fulco_crispr_ABC['Fraction change in gene expr'] < 0)
-Fulco_crispr_ABC = Fulco_crispr_ABC.loc[:,~Fulco_crispr_ABC.columns.str.match("Unnamed")]
-Fulco_crispr_ABC.reset_index(drop=True)
-Fulco_crispr_ABC.to_csv(data_dir+"Fulco2019.CRISPR.ABC.TF.txt", sep='\t')
-
 # erole
 #erole = pd.read_csv(data_dir+"Fulco2019.CRISPR.eroles.txt", sep="\t")
 #Fulco_crispr_ABC = pd.merge(Fulco_crispr_ABC, erole, left_on=["name"], right_on=["name_x"])
 #Fulco_crispr_ABC.drop(Fulco_crispr_ABC.filter(regex='_x$').columns, axis=1, inplace=True)
 #Fulco_crispr_ABC.to_csv(data_dir+"Fulco2019.CRISPR.ABC.TF.cobinding.erole.txt", sep='\t')
-
 

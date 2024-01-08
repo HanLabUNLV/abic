@@ -45,15 +45,15 @@ python src/preprocess/overlap.fulco.py
 
 
 # calculate indirect ABC scores
-#python -i src/network/calculate_abic.py  --netdir data/epgraph.Fulco.K562/ --dir data/Fulco --infile Fulco2019.CRISPR.ABC.TF.txt 
+#python -i src/network/calculate_abic.py  --netdir data/epgraph.Fulco.K562/ --dir ${DATADIR} --infile Fulco2019.CRISPR.ABC.TF.txt 
 
-
-# extract rows with genes that have at least 1 significant enhancer
-#python src/preprocess/atleast1sig.py --dir data/Fulco/ --infile Fulco2019.CRISPR.ABC.TF.erole.txt 
 
 
 # apply DR
-python src/preprocess/applynmf.py --dir data/Fulco --infile Fulco2019.CRISPR.ABC.TF.txt --NMFdir data/Gasperini/
+python src/preprocess/applynmf.py --dir ${DATADIR} --infile Fulco2019.CRISPR.ABC.TF.txt --NMFdir data/Gasperini/
 
+
+# extract rows with genes that have at least 1 significant enhancer
+python src/preprocess/atleast1sig.py --dir ${DATADIR}/ --infile Fulco2019.CRISPR.ABC.TF.test.txt
 
 

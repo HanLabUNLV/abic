@@ -11,7 +11,7 @@ TFFILE=/data8/han_lab/mhan/abic/data/ucsc/encRegTfbsClusteredWithK562.hg19.bed
 awk -F"\t" '{print $1"\t"$2"\t"$3"\t"$4}' $CRISPRFILE | sort -k1,1 -k2,2n -k3,3n | uniq > ${DATADIR}/enhancer.bed
 awk '{print $5}' $CRISPRFILE | sort | uniq > genenames.txt
 awk '{print $4"\t"$0}' $TSSPOS | LC_ALL=C sort > TSSpos.txt
-join genenames.txt TSSpos.txt | awk '{print $2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}' | bedtools sort -i > ${DATADIR}/TSS.bed
+LC_ALL=C join genenames.txt TSSpos.txt | awk '{print $2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}' | bedtools sort -i > ${DATADIR}/TSS.bed
 
 echo -e "G.chr\tG.start\tG.end\tG.id\tABC.chr\tABC.start\tABC.end\tABC.id\toverlap" > ${DATADIR}/enhancer.ABC.overlap.bed
 bedtools intersect -wo -e -f 0.3 -F 0.3 -a ${DATADIR}/enhancer.bed -b $ABCOUTDIR/Neighborhoods/EnhancerList.bed  >> ${DATADIR}/enhancer.ABC.overlap.bed
@@ -43,6 +43,14 @@ ln -s $ABCOUTDIR/Neighborhoods.H3K27me3/GeneList.txt ${DATADIR}/GeneList.H3K27me
 # run overlap.shraivogel.py
 python src/preprocess/overlap.shraivogel.py 
 
-# generate target.txt
-awk -F"\t" '{print $782}' ${DATADIR}/CRISPR.ABC.TF.cobinding.txt > ${DATADIR}/CRISPR.ABC.TF.cobinding.target.txt
-#
+
+
+# apply DR
+python src/preprocess/applynmf.py --dir ${DATADIR} --infile CRISPR.ABC.TF.txt --NMFdir data/Gasperini/
+
+
+# extract rows with genes that have at least 1 significant enhancer
+python src/preprocess/atleast1sig.py --dir ${DATADIR}/ --infile CRISPR.ABC.TF.test.txt
+
+
+

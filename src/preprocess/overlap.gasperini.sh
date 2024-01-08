@@ -57,7 +57,8 @@ python src/preprocess/applynmf.py --dir data/Gasperini --infile Gasperini2019.at
 
 
 # extract rows with genes that have at least 1 significant enhancer
-python src/preprocess/atleast1sig.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.test.txt 
+python src/preprocess/atleast1sig.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt
+
 
 
 # split data by complexity 

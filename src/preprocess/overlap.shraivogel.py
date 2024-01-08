@@ -6,18 +6,46 @@ data_dir = "data/Shraivogel/"
 Exp_enhancer = pd.read_csv(data_dir+"enhancer.ABC.overlap.bed", sep='\t')
 Exp_TSS = pd.read_csv(data_dir+"TSS.ABC.overlap.bed", sep='\t')
 Exp_crispr = pd.read_csv(data_dir+"Shraivogel.input.txt", sep="\t")
+
+
 ABC = pd.read_csv(data_dir+"ABC.EnhancerPredictionsAllPutative.txt", sep='\t')
-ABC['ABC.Score.Denominator'] = ABC['ABC.Score.Numerator']/ABC['ABC.Score']
 ABC_by_gene = ABC.groupby('TargetGene')
-ABC_by_gene[["ABC.Score.Denominator"]].mean()
-def replaceNA(group):
-    mask = group.isna()
-    # Select those values where it is NA, and replace
-    # them with the mean of the values which are not NA.
-    group[mask] = group[~mask].mean()
-    return group
-Denominator_NA_replaced = ABC_by_gene["ABC.Score.Denominator"].transform(replaceNA)
-ABC['ABC.Score.Denominator'] = Denominator_NA_replaced
+ABC['Enhancer.count.near.TSS'] = ABC_by_gene[['TargetGene']].transform('count')
+ABC['mean.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('mean')
+ABC['std.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('std')
+ABC['std.contact.to.TSS'] = ABC['std.contact.to.TSS'].fillna(0)
+ABC['zscore.contact.to.TSS'] = (ABC['hic_contact'] - ABC['mean.contact.to.TSS']) / ABC['std.contact.to.TSS']
+ABC['zscore.contact.to.TSS'] = ABC['zscore.contact.to.TSS'].fillna(0)
+ABC['max.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('max')
+ABC['diff.from.max.contact.to.TSS'] = ABC['hic_contact']-ABC['max.contact.to.TSS']
+ABC['total.contact.to.TSS'] = ABC_by_gene[['hic_contact']].transform('sum')
+ABC['remaining.enhancers.contact.to.TSS'] = ABC['total.contact.to.TSS'] - ABC['hic_contact']
+ABC_by_enhancer = ABC.groupby('name')
+ABC['TSS.count.near.enhancer'] = ABC_by_enhancer[['name']].transform('count')
+ABC['mean.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('mean')
+ABC['std.contact.from.enhancer'] = ABC_by_gene[['hic_contact']].transform('std')
+ABC['std.contact.from.enhancer'] = ABC['std.contact.from.enhancer'].fillna(0)
+ABC['zscore.contact.from.enhancer'] = (ABC['hic_contact'] - ABC['mean.contact.from.enhancer']) / ABC['std.contact.from.enhancer']
+ABC['zscore.contact.from.enhancer'] = ABC['zscore.contact.from.enhancer'].fillna(0)
+ABC['max.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('max')
+ABC['diff.from.max.contact.from.enhancer'] = ABC['hic_contact']-ABC['max.contact.from.enhancer']
+ABC['total.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('sum')
+ABC['remaining.TSS.contact.from.enhancer'] = ABC['total.contact.from.enhancer'] - ABC['hic_contact']
+# combined
+ABC['nearby.counts'] = ABC['Enhancer.count.near.TSS']+ABC['TSS.count.near.enhancer']
+ABC['mean.contact'] = ((ABC['Enhancer.count.near.TSS']*ABC['mean.contact.to.TSS'])+(ABC['TSS.count.near.enhancer']*ABC['mean.contact.from.enhancer'])) / (ABC['Enhancer.count.near.TSS']+ABC['TSS.count.near.enhancer'])
+q1 = (ABC['Enhancer.count.near.TSS']-1)*(ABC['std.contact.to.TSS'].pow(2)) + (ABC['Enhancer.count.near.TSS'])*(ABC['mean.contact.to.TSS'].pow(2))
+q2 = (ABC['Enhancer.count.near.TSS']-1)*(ABC['std.contact.from.enhancer'].pow(2)) + (ABC['Enhancer.count.near.TSS'])*(ABC['mean.contact.from.enhancer'].pow(2))
+qc = (q1 + q2) 
+meansq = (ABC['Enhancer.count.near.TSS']+ABC['TSS.count.near.enhancer'])*(ABC['mean.contact'].pow(2))
+denom = (ABC['Enhancer.count.near.TSS']+ABC['TSS.count.near.enhancer']-1)
+ABC['std.contact'] =  (( qc - meansq ) / denom).pow(1./2)
+ABC['zscore.contact'] = (ABC['hic_contact'] - ABC['mean.contact']) / ABC['std.contact']
+ABC['zscore.contact'] = ABC['zscore.contact'].fillna(0)
+ABC['max.contact'] = ABC[['max.contact.to.TSS', 'max.contact.from.enhancer']].max(axis=1)
+ABC['diff.from.max.contact'] = ABC['hic_contact']-ABC['max.contact']
+ABC['total.contact'] = ABC[['total.contact.to.TSS', 'total.contact.from.enhancer']].sum(axis=1)
+ABC['remaining.TSS.contact'] = ABC['total.contact'] - ABC['hic_contact']
 
 
 #new = Exp_enhancer["G.id"].str.split("|", n=1, expand=True)
@@ -62,6 +90,14 @@ Exp_crispr2 = pd.merge(Exp_crispr, Exp_enhancer, left_on=["enhancerID"], right_o
 Exp_crispr2.drop(Exp_crispr2.filter(regex='_y$').columns, axis=1, inplace=True)
 Exp_crispr2["ABC.id"] = Exp_crispr2["ABC.id"] + "_" + Exp_crispr2["Gene"]
 Exp_crispr2.to_csv(data_dir+"CRISPR2.txt", sep='\t')
+# significant.negative
+#Exp_crispr2.rename(columns={'Significant':'Sig.pos.neg'}, inplace=True)
+#Exp_crispr2['Significant'] = Exp_crispr2['Sig.pos.neg'] & (Exp_crispr2['Fraction change in gene expr'] < 0)
+#Exp_crispr2 = Exp_crispr2.loc[:,~Exp_crispr2.columns.str.match("Unnamed")]
+#Exp_crispr2.reset_index(drop=True)
+#Exp_crispr2.to_csv(data_dir+"CRISPR2.txt", sep='\t')
+
+
 
 ABC_gene = pd.read_csv(data_dir+"GeneList.txt", sep="\t")
 ABC_gene = ABC_gene.loc[:,['name','H3K27ac.RPKM.quantile.TSS1Kb']]
@@ -108,6 +144,14 @@ Exp_crispr_ABC_max['Significant'] = Exp_crispr_ABC_max['Significant'].astype('bo
 Exp_crispr_ABC_max.to_csv(data_dir+"CRISPR.ABC.max.innerjoin.txt", sep='\t')
 
 
+#at least one significant
+Exp_crispr_ABC = pd.read_csv(data_dir+"CRISPR.ABC.sum.innerjoin.txt", sep='\t')
+Exp_ABC_by_gene = Exp_crispr_ABC.groupby('Gene', as_index=False)
+Exp_ABC_by_gene_sig = Exp_ABC_by_gene['Significant'].any()
+Exp_ABC_by_gene_sig= Exp_ABC_by_gene_sig.rename(columns={'Significant': 'atleast1Sig'})
+Exp_crispr_ABC = pd.merge(Exp_crispr_ABC, Exp_ABC_by_gene_sig, on=['Gene'], how='inner')
+Exp_crispr_ABC.to_csv(data_dir+"CRISPR.ABC.sum.innerjoin.txt", sep='\t')
+
 
 # K562 TF
 Exp_crispr_ABC = pd.read_csv(data_dir+"CRISPR.ABC.sum.innerjoin.txt", sep='\t')
@@ -146,20 +190,15 @@ Exp_crispr_ABC.drop(Exp_crispr_ABC.filter(regex='_y$').columns, axis=1, inplace=
 Exp_crispr_ABC = pd.merge(Exp_crispr_ABC, TSS_TF_pivot, how="left", left_on=["Gene"], right_on=["gene"])
 Exp_crispr_ABC.drop(Exp_crispr_ABC.filter(regex='_y$').columns, axis=1, inplace=True)
 Exp_crispr_ABC.to_csv(data_dir+"CRISPR.ABC.TF.txt", sep='\t')
-e_TF = Exp_crispr_ABC.iloc[:,start:(start+len(TFcolumns))]
-TSS_TF = Exp_crispr_ABC.iloc[:,(start+len(TFcolumns)):(start+len(TFcolumns)+len(TFcolumns))]
-cobinding = pd.DataFrame(np.logical_and(e_TF, np.asarray(TSS_TF))).astype(int)  
-cobinding.columns = TFcolumns
-cobinding = cobinding.add_suffix('_co')
-Exp_crispr_ABC = pd.concat([Exp_crispr_ABC, cobinding], axis=1)
-Exp_crispr_ABC.to_csv(data_dir+"CRISPR.ABC.TF.cobinding.allsig.txt", sep='\t')
 
 
-# significant.negative
-Exp_crispr_ABC.rename(columns={'Significant':'Sig.pos.neg'}, inplace=True)
-#Exp_crispr_ABC['Significant'] = Exp_crispr_ABC['Sig.pos.neg'] & (Exp_crispr_ABC['Fraction change in gene expr'] < 0)
-Exp_crispr_ABC['Significant'] = Exp_crispr_ABC['Sig.pos.neg'] 
-Exp_crispr_ABC.to_csv(data_dir+"CRISPR.ABC.TF.cobinding.txt", sep='\t')
+#e_TF = Exp_crispr_ABC.iloc[:,start:(start+len(TFcolumns))]
+#TSS_TF = Exp_crispr_ABC.iloc[:,(start+len(TFcolumns)):(start+len(TFcolumns)+len(TFcolumns))]
+#cobinding = pd.DataFrame(np.logical_and(e_TF, np.asarray(TSS_TF))).astype(int)  
+#cobinding.columns = TFcolumns
+#cobinding = cobinding.add_suffix('_co')
+#Exp_crispr_ABC = pd.concat([Exp_crispr_ABC, cobinding], axis=1)
+
 
 # erole
 #erole = pd.read_csv(data_dir+"CRISPR.eroles.txt", sep="\t")

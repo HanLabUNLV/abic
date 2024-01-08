@@ -134,10 +134,10 @@ Gasperini_atscale_ABC.drop(Gasperini_atscale_ABC.filter(regex='_y$').columns, ax
 remove_dups_not_sig = Gasperini_atscale_ABC.duplicated('ABC.id', keep='first') & ~Gasperini_atscale_ABC['Significant']
 Gasperini_atscale_ABC = Gasperini_atscale_ABC[~remove_dups_not_sig] # remove duplicates leaving first item except when significant
 Gasperini_atscale_ABC = Gasperini_atscale_ABC[~Gasperini_atscale_ABC.duplicated('ABC.id', keep='last')]  # now remove duplicates leaving last (significant)
-Gasperini_ABC_by_gene = Gasperini_atscale_ABC.groupby('TargetGene', as_index=False)
+Gasperini_ABC_by_gene = Gasperini_atscale_ABC.groupby('GeneSymbol', as_index=False)
 Gasperini_ABC_by_gene_sig = Gasperini_ABC_by_gene['Significant'].any()
 Gasperini_ABC_by_gene_sig= Gasperini_ABC_by_gene_sig.rename(columns={'Significant': 'atleast1Sig'})
-Gasperini_atscale_ABC = pd.merge(Gasperini_atscale_ABC, Gasperini_ABC_by_gene_sig, on=['TargetGene'], how='inner')
+Gasperini_atscale_ABC = pd.merge(Gasperini_atscale_ABC, Gasperini_ABC_by_gene_sig, on=['GeneSymbol'], how='inner')
 Gasperini_atscale_ABC.to_csv(data_dir+"Gasperini2019.at_scale.ABC.txt", sep='\t')
 
 
