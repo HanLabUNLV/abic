@@ -133,11 +133,6 @@ if __name__ == "__main__":
   dtest = xgb.DMatrix(X_test) 
   y_pred_prob = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration)
   print(y_pred_prob)
-  y_pred = [round(value) for value in y_pred_prob]
-  test_pd = pd.DataFrame({'y_pred':y_pred, 'y_prob':y_pred_prob}, index=y_test.index)
-  y_res = pd.merge(y_test, test_pd, left_index=True, right_index=True)
-  y_res.to_csv(outdir+'/confusion.'+prefix+'.txt', sep='\t')
-
 
   # Data to plot precision - recall curve
   precision, recall, thresholds = precision_recall_curve(y_test, y_pred_prob, pos_label = 1)
@@ -146,6 +141,14 @@ if __name__ == "__main__":
   pr = pd.DataFrame({'precision':precision,'recall':recall,'threshold':np.append(thresholds,None)})
   outfile = os.path.basename(targets)
   pr.to_csv(outdir+'/pr_curve.'+prefix+'.txt', sep='\t')
+  # find threshold at recall == 0.70
+  recallmin = recall-0.70
+  ix = np.where(recallmin >= 0, recallmin, np.inf).argmin()
+  y_pred = [value>=thresholds[ix] for value in y_pred_prob]
+  test_pd = pd.DataFrame({'y_pred':y_pred, 'y_prob':y_pred_prob}, index=y_test.index)
+  y_res = pd.merge(y_test, test_pd, left_index=True, right_index=True)
+  y_res.to_csv(outdir+'/confusion.'+prefix+'.txt', sep='\t')
+
 
   aucpr = auc(recall, precision)
   average_precision = average_precision_score(y_test, y_pred_prob)

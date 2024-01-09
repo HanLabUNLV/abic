@@ -9,10 +9,10 @@ bash src/learning/apply_model.sh
 
 python src/learning/runshap.py --modeldir run.new/ --studyname new.2pass --outdir apply.new/shap
 
-python src/learning/plotprcurve.py --traindir run.new --testdir apply.new/Gasperini/ --studyname new --testname chr5,10,15,20
-python src/learning/plotprcurve.py --traindir run.new --testdir apply.new/Fulco/ --studyname new --testname Fulco
-python src/learning/plotprcurve.py  --traindir run.new --testdir apply.new/Shraivogel/ --studyname new --testname Shraivogel
+python src/learning/plotprcurve.py --traindir run.new --testdir apply.new/Gasperini/ --studyname new --testname chr5,10,15,20 &> chrtest.prcurve.log
+python src/learning/plotprcurve.py --traindir run.new --testdir apply.new/Fulco/ --studyname new --testname Fulco &> fulco.prcurve.log
+python src/learning/plotprcurve.py  --traindir run.new --testdir apply.new/Shraivogel/ --studyname new --testname Shraivogel &> shraivogel.prcurve.log
 
-python src/learning/plotprcurve.py --traindir run.new  --testdir apply.new/Gasperini.atleast1sig/ --studyname new --testname chr5,10,15,20
-python src/learning/plotprcurve.py --traindir run.new  --testdir apply.new/Fulco.atleast1sig/ --studyname new --testname Fulco
-python src/learning/plotprcurve.py --traindir run.new  --testdir apply.new/Shraivogel.atleast1sig/ --studyname new --testname Shraivogel
+python src/learning/plotprcurve.py --traindir run.new  --testdir apply.new/Gasperini.atleast1sig/ --studyname new --testname chr5,10,15,20 &> chrtest.atleast1.prcurve.log
+python src/learning/plotprcurve.py --traindir run.new  --testdir apply.new/Fulco.atleast1sig/ --studyname new --testname Fulco &> fulco.atleast1.prcurve.log
+python src/learning/plotprcurve.py --traindir run.new  --testdir apply.new/Shraivogel.atleast1sig/ --studyname new --testname Shraivogel &> shraivogel.atleast1.prcurve.log

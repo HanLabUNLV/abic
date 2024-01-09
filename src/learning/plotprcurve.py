@@ -3,10 +3,10 @@ import argparse
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.metrics import auc, average_precision_score, precision_recall_curve
+from sklearn.metrics import auc, average_precision_score, precision_recall_curve, confusion_matrix, f1_score
 
 
-def prcurve_from_file(pr_filename, confusion_filename, y_real, y_proba, colorname):
+def prcurve_from_file(pr_filename, confusion_filename, y_real, y_proba, y_pred, colorname):
     prcurve = pd.read_csv(pr_filename, sep='\t', index_col=None)
     precision = prcurve['precision']
     recall = prcurve['recall']
@@ -19,6 +19,7 @@ def prcurve_from_file(pr_filename, confusion_filename, y_real, y_proba, colornam
     
     y_real.append(confusion['Significant'])
     y_proba.append(confusion['y_prob'])
+    y_pred.append(confusion['y_pred'])
 
 
 def ABC_predict(inputfile, threshold=0.022, inputindex=None):
@@ -90,20 +91,25 @@ if __name__ == "__main__":
   i = 0
   y_real_cv = []
   y_proba_cv = []
+  y_pred_cv = []
 
   fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(6, 6))
   for i in range(4):
-      prcurve_from_file(pr_cv[i], confusion_cv[i], y_real_cv, y_proba_cv, 'blue')
+      prcurve_from_file(pr_cv[i], confusion_cv[i], y_real_cv, y_proba_cv, y_pred_cv, 'blue')
       i += 1
 
   y_real_cv = np.concatenate(y_real_cv)
   y_proba_cv = np.concatenate(y_proba_cv)
+  y_pred_cv = np.concatenate(y_pred_cv)
   precision, recall, _ = precision_recall_curve(y_real_cv, y_proba_cv)
   AUCPR=auc(recall, precision)
   plt.plot(recall, precision, color='blue',
            label=r'XGB Test(outer fold CV) (AUC = %0.2f)' % (average_precision_score(y_real_cv, y_proba_cv)),
            #label=r'Test(outer fold CV) (AUC = %0.2f)' % (AUCPR),
            lw=2, alpha=.8)
+  print('Best XGB (CV) confusion matrix:')
+  confmat = confusion_matrix(y_real_cv,y_pred_cv)
+  print(confmat)
 
   ABC_cv = pd.DataFrame()
   for i in range(4):
@@ -116,19 +122,32 @@ if __name__ == "__main__":
   precision, recall, thresholds = precision_recall_curve(ABC_cv['Significant'], ABC_cv['ABC.Score'])
   AUCPR=auc(recall, precision)
   # convert to f score
-#  fscore = (2 * precision * recall) / (precision + recall)
-#  # locate the index of the largest f score
-#  ix = np.argmax(fscore)
-#
-#  print('Best ABC (CV) Threshold=%f, F-Score=%.3f' % (thresholds[ix], fscore[ix]))
-
+  fscore = (2 * precision * recall) / (precision + recall)
+  where_nans = np.isnan(fscore)
+  fscore[where_nans] = 0
+  # locate the index of the largest f score
+  ix = np.argmax(fscore)
+  print('Best ABC (CV) Threshold=%f, F-Score=%.3f' % (thresholds[ix], fscore[ix]))
   ABC_cv = pd.DataFrame()
   for i in range(4):
-      ABC_fold = ABC_predict(train_inputfile, threshold=0.06848, inputindex=Xfeatures_cv[i])
+      ABC_fold = ABC_predict(train_inputfile, threshold=thresholds[ix], inputindex=Xfeatures_cv[i])
       ABC_cv = pd.concat([ABC_cv, ABC_fold]) 
-
   ABC_cv = ABC_cv[['Significant','y_pred', 'ABC.Score', 'distance']]
   ABC_cv.to_csv(test_dir+'/ABC.gasperini.outerCV.best.confusion.txt', sep='\t')
+  confmat = confusion_matrix(ABC_cv['Significant'],ABC_cv['y_pred'])
+  print(confmat)
+
+  recallmin = recall-0.70
+  ix2 = np.where(recallmin >= 0, recallmin, np.inf).argmin()
+  print('0.70 recall ABC (CV) Threshold=%f, F-Score=%.3f' % (thresholds[ix2], fscore[ix2]))
+  ABC_cv = pd.DataFrame()
+  for i in range(4):
+      ABC_fold = ABC_predict(train_inputfile, threshold=thresholds[ix2], inputindex=Xfeatures_cv[i])
+      ABC_cv = pd.concat([ABC_cv, ABC_fold]) 
+  ABC_cv = ABC_cv[['Significant','y_pred', 'ABC.Score', 'distance']]
+  ABC_cv.to_csv(test_dir+'/ABC.gasperini.outerCV.0.7recall.confusion.txt', sep='\t')
+  confmat = confusion_matrix(ABC_cv['Significant'],ABC_cv['y_pred'])
+  print(confmat)
 
 
   ABC_cv = ABC_cv.dropna()
@@ -136,7 +155,8 @@ if __name__ == "__main__":
            label=r'ABC_score(outer fold data) (AUC = %0.2f)' % (average_precision_score(ABC_cv['Significant'], ABC_cv['ABC.Score'])),
            #label=r'ABC_score (AUC = %0.2f)' % (AUCPR),
            lw=2, alpha=.8)
-  #plt.scatter(recall[ix], precision[ix], marker='o', color='black', label='Best ABC (CV) Threshold=%f' % (thresholds[ix]))
+  plt.scatter(recall[ix], precision[ix], marker='o', color='black', label='Best ABC (CV) Threshold=%f' % (thresholds[ix]))
+  plt.scatter(recall[ix2], precision[ix2], marker='o', color='blue', label='0.7 recall ABC (CV) Threshold=%f' % (thresholds[ix2]))
 
   precision, recall, thresholds = precision_recall_curve(ABC_cv['Significant'], ABC_cv['distance'])
   AUCPR=auc(recall, precision)
@@ -164,22 +184,30 @@ if __name__ == "__main__":
 
   y_real_test = []
   y_proba_test = []
+  y_pred_test = []
+  f1 = []
 
   fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(6, 6))
   for i in range(4):
-      prcurve_from_file(pr_test[i], confusion_test[i], y_real_test, y_proba_test, 'red')
+      prcurve_from_file(pr_test[i], confusion_test[i], y_real_test, y_proba_test, y_pred_test, 'red')
+      f1.append( f1_score(y_real_test[i], y_pred_test[i]))
       i += 1
 
-  y_real_test = np.concatenate(y_real_test)
-  y_proba_test = np.concatenate(y_proba_test)
+  y_real_test_concat = np.concatenate(y_real_test)
+  y_proba_test_concat = np.concatenate(y_proba_test)
+  y_pred_test_concat = np.concatenate(y_pred_test)
+  xgb_best_model_idx = np.argmax(f1)
 
-  precision, recall, _ = precision_recall_curve(y_real_test, y_proba_test)
+  precision, recall, _ = precision_recall_curve(y_real_test_concat, y_proba_test_concat)
   AUCPR=auc(recall, precision)
-  avgPrecision = average_precision_score(y_real_test, y_proba_test)
+  avgPrecision = average_precision_score(y_real_test_concat, y_proba_test_concat)
   plt.plot(recall, precision, color='red',
            label=r'XGB Test: %s (AUC = %0.2f)' % (testname, avgPrecision),
            #label=r'Test: %s (AUC = %0.2f)' % (AUCPR),
            lw=2, alpha=.8)
+  print('Best XGB (test) confusion matrix:')
+  confmat = confusion_matrix(y_real_test[xgb_best_model_idx],y_pred_test[xgb_best_model_idx])
+  print(confmat)
 
 
   ABC_test = ABC_predict(test_inputfile)
@@ -194,10 +222,20 @@ if __name__ == "__main__":
   # locate the index of the largest f score
   ix = np.argmax(fscore)
   print('Best ABC (test) Threshold=%f, F-Score=%.3f' % (thresholds[ix], fscore[ix]))
-
   ABC_test = ABC_predict(test_inputfile, threshold=thresholds[ix])
   ABC_test = ABC_test[['Significant','y_pred', 'ABC.Score', 'distance']]
   ABC_test.to_csv(test_dir+'/ABC.test.'+testname+'.best.confusion.txt', sep='\t')
+  confmat = confusion_matrix(ABC_test['Significant'],ABC_test['y_pred'])
+  print(confmat)
+
+  recallmin = recall-0.70
+  ix2 = np.where(recallmin >= 0, recallmin, np.inf).argmin()
+  print('0.70 recall ABC (test) Threshold=%f, F-Score=%.3f' % (thresholds[ix2], fscore[ix2]))
+  ABC_test = ABC_predict(test_inputfile, threshold=thresholds[ix2])
+  ABC_test = ABC_test[['Significant','y_pred', 'ABC.Score', 'distance']]
+  ABC_test.to_csv(test_dir+'/ABC.test.'+testname+'.0.7recall.confusion.txt', sep='\t')
+  confmat = confusion_matrix(ABC_test['Significant'],ABC_test['y_pred'])
+  print(confmat)
 
   ABC_test = ABC_test.dropna()
   plt.plot(recall, precision, color='green',
@@ -205,6 +243,7 @@ if __name__ == "__main__":
            #label=r'ABC_score (AUC = %0.2f)' % (AUCPR),
            lw=2, alpha=.8)
   plt.scatter(recall[ix], precision[ix], marker='o', color='black', label='Best ABC (test) Threshold=%f' % (thresholds[ix]))
+  plt.scatter(recall[ix2], precision[ix2], marker='o', color='blue', label='0.70 recall ABC (test) Threshold=%f' % (thresholds[ix2]))
 
   precision, recall, thresholds = precision_recall_curve(ABC_test['Significant'], ABC_test['distance'])
   AUCPR=auc(recall, precision)

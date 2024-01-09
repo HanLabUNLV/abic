@@ -630,18 +630,22 @@ class OuterFolds:
                 dtest = xgb.DMatrix(X_test, label=y_test)
                 y_pred_prob = xgb_clf_tuned_2.predict(dtest, ntree_limit=best_iteration)
                 print(y_pred_prob)
-                y_pred = [round(value) for value in y_pred_prob]
-                test_pd = pd.DataFrame({'y_pred':y_pred, 'y_prob':y_pred_prob}, index=y_test.index)
-                y_res = pd.merge(y_test, test_pd, left_index=True, right_index=True)
-                #res = pd.merge(y_res, X_test, left_index=True, right_index=True)
-                y_res.to_csv(self.outdir+'/'+self.study_name_prefix+'.confusion.'+classifier+'.'+str(outer_index)+'.txt', sep='\t')
                 # Data to plot precision - recall curve
                 precision, recall, thresholds = precision_recall_curve(y_test, y_pred_prob, pos_label = 1)
                 print(precision)
                 print(recall)
                 pr = pd.DataFrame({'precision':precision,'recall':recall,'thresholds':np.append(thresholds,None)})
                 pr.to_csv(self.outdir+'/'+self.study_name_prefix+'.pr_curve.'+classifier+'.'+str(outer_index)+'.txt', sep='\t')
- 
+                # find threshold for confusion matrix at recall == 0.70
+                recallmin = recall-0.70
+                ix = np.where(recallmin >= 0, recallmin, np.inf).argmin()
+                y_pred = [value>=thresholds[ix] for value in y_pred_prob]
+                #y_pred = [round(value) for value in y_pred_prob]
+                test_pd = pd.DataFrame({'y_pred':y_pred, 'y_prob':y_pred_prob}, index=y_test.index)
+                y_res = pd.merge(y_test, test_pd, left_index=True, right_index=True)
+                #res = pd.merge(y_res, X_test, left_index=True, right_index=True)
+                y_res.to_csv(self.outdir+'/'+self.study_name_prefix+'.confusion.'+classifier+'.'+str(outer_index)+'.txt', sep='\t')
+
                 aucpr = auc(recall, precision)
                 average_precision = average_precision_score(y_test, y_pred_prob)
                 bal_accuracy = balanced_accuracy_score(y_test, y_pred)
