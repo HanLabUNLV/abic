@@ -123,25 +123,22 @@ ABC.to_csv(data_dir+"ABC.txt", sep='\t')
 Exp_crispr_ABC = pd.merge(Exp_crispr2, ABC, how="left", left_on=["ABC.id"], right_on=["chr:start-end_TargetGene"], suffixes=('', '_y'))
 Exp_crispr_ABC.drop(Exp_crispr_ABC.filter(regex='_y$').columns, axis=1, inplace=True)
 Exp_crispr_ABC.to_csv(data_dir+"CRISPR.ABC.leftjoin.withdups.txt", sep='\t')
-grouped = Exp_crispr_ABC.groupby(['G.id','ABC.id'], as_index=False)
-Exp_crispr_ABC_sum = grouped.agg(lambda x: x.sum() if np.issubdtype(x.dtype, np.number) else x.iloc[0])
+#grouped = Exp_crispr_ABC.groupby(['G.id','ABC.id'], as_index=False)
+grouped = Exp_crispr_ABC.groupby(['chr', 'start', 'end', 'Gene'], as_index=False)
+Exp_crispr_ABC_sum = grouped.agg(lambda x: x.sum() if x.name=='ABC.Score' else (x.any() if x.name=='Significant' else (x.max() if np.issubdtype(x.dtype, np.number) else x.iloc[0]))) 
 Exp_crispr_ABC_sum['Significant'] = Exp_crispr_ABC_sum['Significant'].astype('bool')
 Exp_crispr_ABC_sum.to_csv(data_dir+"CRISPR.ABC.sum.leftjoin.txt", sep='\t')
-Exp_crispr_ABC_max = grouped.agg(lambda x: x.max() if np.issubdtype(x.dtype, np.number) else x.iloc[0])
-Exp_crispr_ABC_max['Significant'] = Exp_crispr_ABC_max['Significant'].astype('bool')
-Exp_crispr_ABC_max.to_csv(data_dir+"CRISPR.ABC.max.leftjoin.txt", sep='\t')
 
 
 Exp_crispr_ABC = pd.merge(Exp_crispr2, ABC, left_on=["ABC.id"], right_on=["chr:start-end_TargetGene"], suffixes=('', '_y'))
 Exp_crispr_ABC.drop(Exp_crispr_ABC.filter(regex='_y$').columns, axis=1, inplace=True)
 Exp_crispr_ABC.to_csv(data_dir+"CRISPR.ABC.innerjoin.withdups.txt", sep='\t')
-grouped = Exp_crispr_ABC.groupby(['G.id','ABC.id'], as_index=False)
-Exp_crispr_ABC_sum = grouped.agg(lambda x: x.sum() if np.issubdtype(x.dtype, np.number) else x.iloc[0])
+#grouped = Exp_crispr_ABC.groupby(['G.id','ABC.id'], as_index=False)
+grouped = Exp_crispr_ABC.groupby(['chr', 'start', 'end', 'Gene'], as_index=False)
+Exp_crispr_ABC_sum = grouped.agg(lambda x: x.sum() if x.name=='ABC.Score' else (x.any() if x.name=='Significant' else (x.max() if np.issubdtype(x.dtype, np.number) else x.iloc[0]))) 
 Exp_crispr_ABC_sum['Significant'] = Exp_crispr_ABC_sum['Significant'].astype('bool')
 Exp_crispr_ABC_sum.to_csv(data_dir+"CRISPR.ABC.sum.innerjoin.txt", sep='\t')
-Exp_crispr_ABC_max = grouped.agg(lambda x: x.max() if np.issubdtype(x.dtype, np.number) else x.iloc[0])
-Exp_crispr_ABC_max['Significant'] = Exp_crispr_ABC_max['Significant'].astype('bool')
-Exp_crispr_ABC_max.to_csv(data_dir+"CRISPR.ABC.max.innerjoin.txt", sep='\t')
+
 
 
 #at least one significant
