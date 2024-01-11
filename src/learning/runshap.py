@@ -54,6 +54,8 @@ if __name__ == "__main__":
   IDcolname = 'ABC.id'
   #IDcolname = 'GeneSymbol'
 
+  plt.rcParams.update({'font.size': 14})
+
   #################################
   #import our data, then format it #
   ##################################
@@ -236,7 +238,6 @@ if __name__ == "__main__":
   plt.savefig(outdir+'/'+'shap.'+studyname+'.shap.pdf')
   fig.clf()
   plt.close(fig)
-
 
   # heatmap
   #fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
