@@ -115,7 +115,7 @@ if __name__ == "__main__":
         ABC_cv = pd.concat([ABC_cv, ABC_fold]) 
 
     ABC_cv = ABC_cv[['Significant','y_pred', 'ABC.Score', 'distance']]
-    ABC_cv.to_csv(train_dir+'/ABC.gasperini.outerCV.default.confusion.txt', sep='\t')
+    ABC_cv.to_csv(train_dir_list[0]+'/ABC.gasperini.outerCV.default.confusion.txt', sep='\t')
 
     precision, recall, thresholds = precision_recall_curve(ABC_cv['Significant'], ABC_cv['ABC.Score'])
     AUCPR=auc(recall, precision)
@@ -131,7 +131,7 @@ if __name__ == "__main__":
         ABC_fold = ABC_predict(train_inputfile, threshold=thresholds[ix], inputindex=Xfeatures_cv[i])
         ABC_cv = pd.concat([ABC_cv, ABC_fold]) 
     ABC_cv = ABC_cv[['Significant','y_pred', 'ABC.Score', 'distance']]
-    ABC_cv.to_csv(train_dir+'/ABC.gasperini.outerCV.best.confusion.txt', sep='\t')
+    ABC_cv.to_csv(train_dir_list[0]+'/ABC.gasperini.outerCV.best.confusion.txt', sep='\t')
     confmat = confusion_matrix(ABC_cv['Significant'],ABC_cv['y_pred'])
     print(confmat)
 
@@ -143,7 +143,7 @@ if __name__ == "__main__":
         ABC_fold = ABC_predict(train_inputfile, threshold=thresholds[ix2], inputindex=Xfeatures_cv[i])
         ABC_cv = pd.concat([ABC_cv, ABC_fold]) 
     ABC_cv = ABC_cv[['Significant','y_pred', 'ABC.Score', 'distance']]
-    ABC_cv.to_csv(train_dir+'/ABC.gasperini.outerCV.0.7recall.confusion.txt', sep='\t')
+    ABC_cv.to_csv(train_dir_list[0]+'/ABC.gasperini.outerCV.0.7recall.confusion.txt', sep='\t')
     confmat = confusion_matrix(ABC_cv['Significant'],ABC_cv['y_pred'])
     print(confmat)
 
@@ -235,7 +235,7 @@ if __name__ == "__main__":
 
     ABC_test = ABC_predict(test_inputfile)
     ABC_test = ABC_test[['Significant','y_pred', 'ABC.Score', 'distance']]
-    ABC_test.to_csv(test_dir+'/ABC.test.'+testname+'.default.confusion.txt', sep='\t')
+    ABC_test.to_csv(test_dir_list[0]+'/ABC.test.'+testname+'.default.confusion.txt', sep='\t')
 
     precision, recall, thresholds = precision_recall_curve(ABC_test['Significant'], ABC_test['ABC.Score'])
     AUCPR=auc(recall, precision)
@@ -247,7 +247,7 @@ if __name__ == "__main__":
     print('Best ABC (test) Threshold=%.3f, F-Score=%.3f' % (thresholds[ix], fscore[ix]))
     ABC_test = ABC_predict(test_inputfile, threshold=thresholds[ix])
     ABC_test = ABC_test[['Significant','y_pred', 'ABC.Score', 'distance']]
-    ABC_test.to_csv(test_dir+'/ABC.test.'+testname+'.best.confusion.txt', sep='\t')
+    ABC_test.to_csv(test_dir_list[0]+'/ABC.test.'+testname+'.best.confusion.txt', sep='\t')
     confmat = confusion_matrix(ABC_test['Significant'],ABC_test['y_pred'])
     print(confmat)
 
@@ -256,7 +256,7 @@ if __name__ == "__main__":
     print('0.70 recall ABC (test) Threshold=%.3f, F-Score=%.3f' % (thresholds[ix2], fscore[ix2]))
     ABC_test = ABC_predict(test_inputfile, threshold=thresholds[ix2])
     ABC_test = ABC_test[['Significant','y_pred', 'ABC.Score', 'distance']]
-    ABC_test.to_csv(test_dir+'/ABC.test.'+testname+'.0.7recall.confusion.txt', sep='\t')
+    ABC_test.to_csv(test_dir_list[0]+'/ABC.test.'+testname+'.0.7recall.confusion.txt', sep='\t')
     confmat = confusion_matrix(ABC_test['Significant'],ABC_test['y_pred'])
     print(confmat)
 
