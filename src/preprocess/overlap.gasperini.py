@@ -56,7 +56,7 @@ ABC['zscore.contact'] = ABC['zscore.contact'].fillna(0)
 ABC['max.contact'] = ABC[['max.contact.to.TSS', 'max.contact.from.enhancer']].max(axis=1)
 ABC['diff.from.max.contact'] = ABC['hic_contact']-ABC['max.contact']
 ABC['total.contact'] = ABC[['total.contact.to.TSS', 'total.contact.from.enhancer']].sum(axis=1)
-ABC['remaining.TSS.contact'] = ABC['total.contact'] - ABC['hic_contact']
+ABC['remaining.contact'] = ABC['total.contact'] - ABC['hic_contact']
 
 
 

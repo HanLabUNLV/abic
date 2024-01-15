@@ -70,7 +70,7 @@ if __name__ == "__main__":
   ActivityFeatures = ActivityFeatures.dropna()
   ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
   #hicfeatures = X_test[['hic_contact', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'zscore.contact.to.TSS', 'diff.from.max.contact.to.TSS', 'total.contact.to.TSS', 'remaining.enhancers.contact.to.TSS', 'TSS.count.near.enhancer', 'mean.contact.from.enhancer', 'zscore.contact.from.enhancer', 'diff.from.max.contact.from.enhancer', 'total.contact.from.enhancer', 'remaining.TSS.contact.from.enhancer', 'nearby.counts', 'mean.contact', 'zscore.contact', 'diff.from.max.contact', 'total.contact']].copy()
-  hicfeatures = X_test[['hic_contact', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'zscore.contact.to.TSS', 'diff.from.max.contact.to.TSS', 'TSS.count.near.enhancer', 'mean.contact.from.enhancer', 'zscore.contact.from.enhancer', 'diff.from.max.contact.from.enhancer']].copy()
+  hicfeatures = X_test[['hic_contact', 'Enhancer.count.near.TSS', 'zscore.contact.to.TSS', 'diff.from.max.contact.to.TSS', 'remaining.enhancers.contact.to.TSS', 'TSS.count.near.enhancer', 'zscore.contact.from.enhancer', 'diff.from.max.contact.from.enhancer', 'remaining.TSS.contact.from.enhancer' ]].copy()
   hicfeatures = hicfeatures.dropna()
   TFfeatures = X_test.filter(regex='(_e)|(_TSS)|(NMF)').copy()
   TFfeatures = TFfeatures.dropna()

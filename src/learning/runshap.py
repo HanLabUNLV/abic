@@ -74,6 +74,7 @@ if __name__ == "__main__":
   X_test = X_test.drop(columns = [IDcolname])
   print(X_test)
   X = pd.DataFrame(columns = X_test.columns)
+  X_scaled = pd.DataFrame(columns = X_test.columns)
   print(X)
   IDdf = pd.DataFrame(columns = ['ID'])
   y = pd.DataFrame(columns = ['Significant'])
@@ -102,6 +103,7 @@ if __name__ == "__main__":
       X_test = X_test.reindex(columns = scaler.get_feature_names_out())
       X_test = pd.DataFrame(scaler.transform(X_test), columns = X_test.columns)
       print(X_test.columns)
+      X_scaled = pd.concat([X_scaled, X_test])
 
       # preprocess y_test
       y_test = y_test.loc[:,~y_test.columns.str.match("Unnamed")]
@@ -238,6 +240,11 @@ if __name__ == "__main__":
   plt.savefig(outdir+'/'+'shap.'+studyname+'.shap.pdf')
   fig.clf()
   plt.close(fig)
+  fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
+  shap.summary_plot(shap_pandas.to_numpy(), X_scaled, max_display=100)
+  plt.savefig(outdir+'/'+'shap.'+studyname+'.shap.scaled.pdf')
+  fig.clf()
+  plt.close(fig)
 
   # heatmap
   #fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
@@ -248,7 +255,9 @@ if __name__ == "__main__":
 
   # plot dependency for top features 
   shap_order = shap_pandas.abs().mean().sort_values(ascending=[False])
-  for i in range(0,40):
+  #for i in range(0,18):
+  #  for j in range(0,18):
+  for i in range(0,45):
     for j in range(0,25):
       fig, axis = plt.subplots(nrows=1, ncols=1, figsize=(100, 100))
       shap.dependence_plot(shap_order.index[i], shap_values=shap_values, features=X, interaction_index=shap_order.index[j])

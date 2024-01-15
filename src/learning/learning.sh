@@ -1,10 +1,11 @@
 python src/learning/learning.py --dir data/Gasperini/ --outdir run.new --port 17203 --studyname new --init --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt
 bash src/learning/opt1pass.sh
+python src/learning/learning.py --dir data/Gasperini/ --outdir run.new --port 17203 --studyname new --test &> run.new/test1pass.log
 bash src/learning/featureselection.sh
 python src/learning/learning.py --dir data/Gasperini/ --outdir run.new --port 17203 --studyname new --dropfeatures
 python src/learning/learning.py --dir data/Gasperini/ --outdir run.new --port 17203 --studyname new --init2pass
 bash src/learning/opt2pass.sh
-python src/learning/learning.py --dir data/Gasperini/ --outdir run.new --port 17203 --studyname new.2pass --test
+python src/learning/learning.py --dir data/Gasperini/ --outdir run.new --port 17203 --studyname new.2pass --test &> run.new/test2pass.log
 bash src/learning/apply_model.sh
 
 python src/learning/runshap.py --modeldir run.new/ --studyname new.2pass --outdir apply.new/shap.new

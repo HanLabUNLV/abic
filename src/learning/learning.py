@@ -151,7 +151,7 @@ class Objective:
       # use exact for small featuresset.
       "tree_method": "auto",
       # n_estimator
-      "num_boost_round": trial.suggest_int("num_boost_round", 50, 500),
+      "num_boost_round": trial.suggest_int("num_boost_round", 50, 300),
       # defines booster
       "booster": trial.suggest_categorical("booster", ["gbtree"]),
       #"booster": trial.suggest_categorical("booster", ["dart"]),
@@ -163,7 +163,7 @@ class Objective:
       "min_child_weight": trial.suggest_int("min_child_weight", 10, 25),
       # learning rate
       #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
-      "eta": 0.01,
+      "eta": 0.03,
       # sampling ratio for training features.
       #"subsample": 0.5,
       "subsample": trial.suggest_float("subsample", 0.4, 0.8),
@@ -176,7 +176,7 @@ class Objective:
       # L1 regularization weight.
       "alpha": trial.suggest_float("alpha", 1e-9, 0.2, log=True),
       # defines how selective algorithm is.
-      "gamma": trial.suggest_float("gamma", 13, 20),
+      "gamma": trial.suggest_float("gamma", 10, 20),
       #"grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
       "scale_pos_weight": self.cls_weight,
       "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
@@ -202,7 +202,7 @@ class Objective:
       "min_child_weight": trial.suggest_int("min_child_weight", 10, 20),
       # learning rate
       #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
-      "eta": 0.01,
+      "eta": 0.03,
       # sampling ratio for training features.
       #"subsample": 0.5,
       "subsample": trial.suggest_float("subsample", 0.6, 0.9),
@@ -654,8 +654,9 @@ class OuterFolds:
                 print(lst_vars_in_model)
                 featurenames = pd.DataFrame({"features":lst_vars_in_model})
                 featurenames.to_csv(self.outdir+'/'+self.study_name_prefix+'.featurenames'+'.'+str(outer_index)+'.txt', index=False, sep='\t')
-                best_iteration = xgb_clf_tuned_2.best_iteration
-                print("new best_iteration: "+str(best_iteration))
+                best_iteration = trial.user_attrs['best_iteration']
+                print("new best_iteration: "+str(xgb_clf_tuned_2.best_iteration))
+                print("old best_iteration: "+str(best_iteration))
                 xgb_clf_tuned_2.save_model(self.outdir+'/'+self.study_name_prefix+'.save'+'.'+str(outer_index)+'.json')
                 xgb_clf_tuned_2.dump_model(self.outdir+'/'+self.study_name_prefix+'.dump'+'.'+str(outer_index)+'.json')
                 config_str = xgb_clf_tuned_2.save_config()
@@ -811,7 +812,7 @@ if __name__ == "__main__":
       ActivityFeatures = ActivityFeatures.dropna()
       ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
       #hicfeatures = features_gasperini[['hic_contact', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'zscore.contact.to.TSS', 'diff.from.max.contact.to.TSS', 'total.contact.to.TSS', 'remaining.enhancers.contact.to.TSS', 'TSS.count.near.enhancer', 'mean.contact.from.enhancer', 'zscore.contact.from.enhancer', 'diff.from.max.contact.from.enhancer', 'total.contact.from.enhancer', 'remaining.TSS.contact.from.enhancer', 'nearby.counts', 'mean.contact', 'zscore.contact', 'diff.from.max.contact', 'total.contact']].copy()
-      hicfeatures = features_gasperini[['hic_contact', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'zscore.contact.to.TSS', 'diff.from.max.contact.to.TSS', 'TSS.count.near.enhancer', 'mean.contact.from.enhancer', 'zscore.contact.from.enhancer', 'diff.from.max.contact.from.enhancer']].copy()
+      hicfeatures = features_gasperini[['hic_contact', 'Enhancer.count.near.TSS', 'zscore.contact.to.TSS', 'diff.from.max.contact.to.TSS', 'remaining.enhancers.contact.to.TSS', 'TSS.count.near.enhancer', 'zscore.contact.from.enhancer', 'diff.from.max.contact.from.enhancer', 'remaining.TSS.contact.from.enhancer' ]].copy()
       #hicfeatures = features_gasperini[['hic_contact', 'hic_contact_pl_scaled_adj', 'ABC.Score.Numerator.sum', 'ABC.Score.otherenhancers']].copy()
       hicfeatures = hicfeatures.dropna()
       TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)|(NMF)').copy()
@@ -822,7 +823,7 @@ if __name__ == "__main__":
 
       features = ActivityFeatures.copy()
       features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
-      #features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
+      features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
       features = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
       data = pd.merge(features, groupfeatures, left_index=True, right_index=True)
       ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
