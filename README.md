@@ -4,7 +4,7 @@ Activity By Indirect Contact
 
 ## Data
 
-Data download: [link](https://drive.google.com/drive/folders/1afVv9AaLuRGDwD4U6sgCmkWbdnmuthom?usp=sharing)
+Data download: [link](https://drive.google.com/drive/folders/1270MmEk8oF3VpJ5llkaKSCqPy0i8-qLW?usp=drive_link)
 
 ## Network Generation
 
