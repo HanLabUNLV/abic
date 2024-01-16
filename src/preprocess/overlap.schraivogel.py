@@ -2,10 +2,10 @@ import pandas as pd
 import numpy as np
 
 # ABC
-data_dir = "data/Shraivogel/"
+data_dir = "data/Schraivogel/"
 Exp_enhancer = pd.read_csv(data_dir+"enhancer.ABC.overlap.bed", sep='\t')
 Exp_TSS = pd.read_csv(data_dir+"TSS.ABC.overlap.bed", sep='\t')
-Exp_crispr = pd.read_csv(data_dir+"Shraivogel.input.txt", sep="\t")
+Exp_crispr = pd.read_csv(data_dir+"Schraivogel.input.txt", sep="\t")
 
 
 ABC = pd.read_csv(data_dir+"ABC.EnhancerPredictionsAllPutative.txt", sep='\t')

@@ -13,13 +13,13 @@ python src/learning/runshap.py --modeldir run.noTF.atleast1sig/ --studyname noTF
 python src/learning/runshap.py --modeldir run.noTF/ --studyname noTF --outdir apply.noTF/shap.noTF
 
 
-python src/learning/plotprcurve.py --traindir run.new --studyname new.2pass --traindir run.noTF --studyname noTF 
-python src/learning/plotprcurve.py --testdir apply.new/Gasperini/ --studyname new.2pass --testname chr5,10,15,20 --testdir apply.noTF/Gasperini --studyname noTF 
-python src/learning/plotprcurve.py --testdir apply.new/Fulco/ --studyname new.2pass --testname Fulco --testdir apply.noTF/Fulco --studyname noTF 
-python src/learning/plotprcurve.py --testdir apply.new/Shraivogel/ --studyname new.2pass --testname Shraivogel --testdir apply.noTF/Shraivogel --studyname noTF 
+python src/learning/plotprcurve.py --traindir run.new --studyname new.2pass --traindir run.noTF --studyname noTF  &> CV.prcurve.log
+python src/learning/plotprcurve.py --testdir apply.new/Gasperini/ --studyname new.2pass --testname chr5,10,15,20 --testdir apply.noTF/Gasperini --studyname noTF  &> gasperini.prcurve.log
+python src/learning/plotprcurve.py --testdir apply.new/Fulco/ --studyname new.2pass --testname Fulco --testdir apply.noTF/Fulco --studyname noTF  &> fulco.prcurve.log
+python src/learning/plotprcurve.py --testdir apply.new/Schraivogel/ --studyname new.2pass --testname Schraivogel --testdir apply.noTF/Schraivogel --studyname noTF  &> schraivogel.prcurve.log
 
-python src/learning/plotprcurve.py --testdir apply.new/Gasperini.atleast1sig/ --studyname new.2pass --testname chr5,10,15,20 --testdir apply.noTF.atleast1sig/Gasperini.atleast1sig --studyname noTF.atleast1sig 
-python src/learning/plotprcurve.py --testdir apply.new/Fulco.atleast1sig/ --studyname new.2pass --testname Fulco --testdir apply.noTF.atleast1sig/Fulco.atleast1sig --studyname noTF.atleast1sig 
-python src/learning/plotprcurve.py --testdir apply.new/Shraivogel.atleast1sig/ --studyname new.2pass --testname Shraivogel --testdir apply.noTF.atleast1sig/Shraivogel.atleast1sig --studyname noTF.atleast1sig 
+python src/learning/plotprcurve.py --testdir apply.new/Gasperini.atleast1sig/ --studyname new.2pass --testname chr5,10,15,20 --testdir apply.noTF.atleast1sig/Gasperini.atleast1sig --studyname noTF.atleast1sig  &> gasperini.atleast1sig.prcurve.log
+python src/learning/plotprcurve.py --testdir apply.new/Fulco.atleast1sig/ --studyname new.2pass --testname Fulco --testdir apply.noTF.atleast1sig/Fulco.atleast1sig --studyname noTF.atleast1sig  &> fulco.atleast1sig.prcurve.log
+python src/learning/plotprcurve.py --testdir apply.new/Schraivogel.atleast1sig/ --studyname new.2pass --testname Schraivogel --testdir apply.noTF.atleast1sig/Schraivogel.atleast1sig --studyname noTF.atleast1sig  &> schraivogel.atleast1sig.prcurve.log
 
 

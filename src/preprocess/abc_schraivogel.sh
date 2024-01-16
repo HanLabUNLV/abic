@@ -3,7 +3,7 @@
 #ln -s juicer_tools.1.7.5_linux_x64_jcuda.0.8.jar juicer_tools.jar
 #
 #gather data
-cd example_shraivogel/input_data
+cd example_schraivogel/input_data
 # DNAse narrowpeak
 wget https://www.encodeproject.org/files/ENCFF623AFX/@@download/ENCFF623AFX.bed.gz
 wget https://www.encodeproject.org/files/ENCFF494DBY/@@download/ENCFF494DBY.bed.gz
@@ -33,70 +33,70 @@ samtools index ENCFF441RET.bam
 samtools index ENCFF271LGJ.bam
 samtools index ENCFF384ZZM.bam
 #cd ../..
-cp example_chr22/input_data/Expression/K562.ENCFF934YBO.TPM.txt example_shraivogel/input_data/
+cp example_chr22/input_data/Expression/K562.ENCFF934YBO.TPM.txt example_schraivogel/input_data/
 
 ##Download hic matrix file  juicebox
 #python src/juicebox_dump.py \
 #--hic_file https://hicfiles.s3.amazonaws.com/hiseq/k562/in-situ/combined_30.hic \
 #--juicebox "java -jar juicer_tools.jar" \
-#--outdir example_shraivogel/input_data/HiC/raw/ 
+#--outdir example_schraivogel/input_data/HiC/raw/ 
 #
 ##Fit HiC data to powerlaw model and extract parameters
 #python src/compute_powerlaw_fit__hic.py \
-#--hicDir example_shraivogel/input_data/HiC/raw/ \
-#--outDir example_shraivogel/input_data/HiC/raw/powerlaw/ \
+#--hicDir example_schraivogel/input_data/HiC/raw/ \
+#--outDir example_schraivogel/input_data/HiC/raw/powerlaw/ \
 #--maxWindow 1000000 \
 #--minWindow 5000 \
 #--resolution 5000 
 #
-cp -r example_wg/input_data/HiC example_shraivogel/input_data/
+cp -r example_wg/input_data/HiC example_schraivogel/input_data/
 
 
 ##Define candidate enhancer regions
 # 
 conda activate final-abc-env 
 # get candidate regions from meta_data/allEnhancers.hg38.txt
-cp example_shraivogel/input_data/allEnhancers.hg19.bed example_shraivogel/input_data/enhancers_from_shraivogel.bed
+cp example_schraivogel/input_data/allEnhancers.hg19.bed example_schraivogel/input_data/enhancers_from_schraivogel.bed
 
 # expand to make 500bp
 TARGET_LENGTH=500
-awk -vF=${TARGET_LENGTH} 'BEGIN{ OFS="\t"; }{ len=$3-$2; diff=F-len; flank=int(diff/2); upflank=downflank=flank; if (diff%2==1) { downflank++; }; if(diff<0) {upflank=0; downflank=0;}; print $1, $2-upflank, $3+downflank; }' example_shraivogel/input_data/enhancers_from_shraivogel.bed > example_shraivogel/input_data/enhancers.500bp.bed
+awk -vF=${TARGET_LENGTH} 'BEGIN{ OFS="\t"; }{ len=$3-$2; diff=F-len; flank=int(diff/2); upflank=downflank=flank; if (diff%2==1) { downflank++; }; if(diff<0) {upflank=0; downflank=0;}; print $1, $2-upflank, $3+downflank; }' example_schraivogel/input_data/enhancers_from_schraivogel.bed > example_schraivogel/input_data/enhancers.500bp.bed
 
 # remove blacklisted 
-bedtools subtract -A -a  example_shraivogel/input_data/enhancers.500bp.bed -b reference/wgEncodeHg19ConsensusSignalArtifactRegions.bed > example_shraivogel/input_data/enhancers.filtered.bed
+bedtools subtract -A -a  example_schraivogel/input_data/enhancers.500bp.bed -b reference/wgEncodeHg19ConsensusSignalArtifactRegions.bed > example_schraivogel/input_data/enhancers.filtered.bed
 # add TSS 500bp
-cat example_shraivogel/input_data/enhancers.filtered.bed reference/RefSeqCurated.170308.bed.CollapsedGeneBounds.TSS500bp.bed |  awk -F"\t" '{print $1"\t"$2"\t"$3}' |  sort -k1,1 -k2,2n  | uniq > example_shraivogel/input_data/enhancers.TSS.bed
+cat example_schraivogel/input_data/enhancers.filtered.bed reference/RefSeqCurated.170308.bed.CollapsedGeneBounds.TSS500bp.bed |  awk -F"\t" '{print $1"\t"$2"\t"$3}' |  sort -k1,1 -k2,2n  | uniq > example_schraivogel/input_data/enhancers.TSS.bed
 # merge 
-bedtools merge -i example_shraivogel/input_data/enhancers.TSS.bed > example_shraivogel/input_data/enhancers.merged.bed
-ln -s  example_shraivogel/input_data/enhancers.merged.bed  example_shraivogel/input_data/Shraivogel.candidate.enhancer.bed
+bedtools merge -i example_schraivogel/input_data/enhancers.TSS.bed > example_schraivogel/input_data/enhancers.merged.bed
+ln -s  example_schraivogel/input_data/enhancers.merged.bed  example_schraivogel/input_data/Schraivogel.candidate.enhancer.bed
 # total 68660 candidate regions average length 600.1
 
 
 conda activate final-abc-env
 #Quantifying Enhancer Activity
 python src/run.neighborhoods.py \
---candidate_enhancer_regions example_shraivogel/input_data/Shraivogel.candidate.enhancer.bed \
+--candidate_enhancer_regions example_schraivogel/input_data/Schraivogel.candidate.enhancer.bed \
 --genes reference/RefSeqCurated.170308.bed.CollapsedGeneBounds.bed \
---H3K27ac example_shraivogel/input_data/ENCFF384ZZM.bam \
---DHS example_shraivogel/input_data/ENCFF441RET.bam,example_shraivogel/input_data/ENCFF271LGJ.bam \
---expression_table example_shraivogel/input_data/K562.ENCFF934YBO.TPM.txt \
+--H3K27ac example_schraivogel/input_data/ENCFF384ZZM.bam \
+--DHS example_schraivogel/input_data/ENCFF441RET.bam,example_schraivogel/input_data/ENCFF271LGJ.bam \
+--expression_table example_schraivogel/input_data/K562.ENCFF934YBO.TPM.txt \
 --chrom_sizes reference/chr_sizes \
 --ubiquitously_expressed_genes reference/UbiquitouslyExpressedGenesHG19.txt \
 --cellType K562 \
---outdir example_shraivogel/ABC_output/Neighborhoods/ 
+--outdir example_schraivogel/ABC_output/Neighborhoods/ 
 
 
 #Computing the ABC Score
 python src/predict.py \
---enhancers example_shraivogel/ABC_output/Neighborhoods/EnhancerList.txt \
---genes example_shraivogel/ABC_output/Neighborhoods/GeneList.txt \
---HiCdir example_shraivogel/input_data/HiC/raw/ \
+--enhancers example_schraivogel/ABC_output/Neighborhoods/EnhancerList.txt \
+--genes example_schraivogel/ABC_output/Neighborhoods/GeneList.txt \
+--HiCdir example_schraivogel/input_data/HiC/raw/ \
 --chrom_sizes reference/chr_sizes \
 --hic_resolution 5000 \
 --scale_hic_using_powerlaw \
 --threshold .02 \
 --cellType K562 \
---outdir example_shraivogel/ABC_output/Predictions/ \
+--outdir example_schraivogel/ABC_output/Predictions/ \
 --make_all_putative \
 --chromosome chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22,chrX
 

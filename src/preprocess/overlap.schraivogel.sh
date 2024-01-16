@@ -1,9 +1,9 @@
 #!/usr/bin/bash
 set -uex
 
-DATADIR=data/Shraivogel
-CRISPRFILE=/data8/han_lab/mhan/abic/${DATADIR}/Shraivogel.input.txt
-ABCOUTDIR=/data8/han_lab/mhan/ABC-Enhancer-Gene-Prediction/example_shraivogel/ABC_output
+DATADIR=data/Schraivogel
+CRISPRFILE=/data8/han_lab/mhan/abic/${DATADIR}/Schraivogel.input.txt
+ABCOUTDIR=/data8/han_lab/mhan/ABC-Enhancer-Gene-Prediction/example_schraivogel/ABC_output
 TSSPOS=$ABCOUTDIR/../../reference/RefSeqCurated.170308.bed.CollapsedGeneBounds.TSS500bp.bed
 TFFILE=/data8/han_lab/mhan/abic/data/ucsc/encRegTfbsClusteredWithK562.hg19.bed
 
@@ -40,8 +40,8 @@ ln -s $ABCOUTDIR/Neighborhoods.H3K4me3/GeneList.txt ${DATADIR}/GeneList.H3K4me3.
 ln -s $ABCOUTDIR/Neighborhoods.H3K27me3/EnhancerList.txt ${DATADIR}/EnhancerList.H3K27me3.txt 
 ln -s $ABCOUTDIR/Neighborhoods.H3K27me3/GeneList.txt ${DATADIR}/GeneList.H3K27me3.txt 
 
-# run overlap.shraivogel.py
-python src/preprocess/overlap.shraivogel.py 
+# run overlap.schraivogel.py
+python src/preprocess/overlap.schraivogel.py 
 
 
 

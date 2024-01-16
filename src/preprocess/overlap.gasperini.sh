@@ -60,6 +60,9 @@ python src/preprocess/applynmf.py --dir data/Gasperini --infile Gasperini2019.at
 python src/preprocess/atleast1sig.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt
 python src/preprocess/atleast1sig.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt
 
+# extract rows with genes that have greater than 2.5 TargetGeneExpression
+python src/preprocess/hiexp.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt
+python src/preprocess/hiexp.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt
 
 
 # split data by complexity 
