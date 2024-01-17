@@ -1,5 +1,5 @@
-# abic
-Activity By Indirect Contact
+# sleps
+Supervised Learning of Enhancer Promoter Specificity.
 
 
 ## Data
