@@ -86,6 +86,7 @@ print(results_df[order(results_df$result),])
 
 
 sig_cols <- results_df[results < 0.05,1]
+write.table(results_df[results < 0.05,], "wilcoxon.weak_strong.positives.txt", sep="\t", quote=FALSE)
 
 for (col in sig_cols) {
   pdf(paste0("weakpos/weak_pos.",col,".wilcox.pdf"), width=3, height=7)

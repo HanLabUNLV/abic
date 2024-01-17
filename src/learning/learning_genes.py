@@ -577,6 +577,7 @@ def DR_NMF_features(TFmatrix):
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--dir', required=True, help="directory containing edgelist and vertices files")
+  parser.add_argument('--infile', required=False, help="infile name")
   parser.add_argument('--outdir', default='.', help="directory containing edgelist and vertices files")
   parser.add_argument('--chr', default='all', help="chromosome")
   parser.add_argument("--port", required=True, help="postgres port for storage")
@@ -598,6 +599,7 @@ if __name__ == "__main__":
   pid = os.getpid()
 
   base_directory = args.dir
+  infile = args.infile
   chromosome = args.chr
   outdir = args.outdir
   postgres_port = args.port
@@ -638,7 +640,11 @@ if __name__ == "__main__":
       #import our data, then format it #
       ##################################
 
-      data2 = pd.read_csv(base_directory+'/Gasperini2019.bygene.ABC.TF.grouped.train.txt',sep='\t', header=0)
+      if infile is None:
+        print( "--infile is required to run the --init process")
+        quit()
+      #data2 = pd.read_csv(base_directory+'/Gasperini2019.bygene.ABC.TF.grouped.train.txt',sep='\t', header=0)
+      data2 = pd.read_csv(base_directory+'/'+infile,sep='\t', header=0)
       data2 = data2.loc[:,~data2.columns.str.match("Unnamed")]
       if (args.e1):
         data2 = data2.loc[data2['e1']==1,]
