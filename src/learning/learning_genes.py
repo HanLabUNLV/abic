@@ -656,49 +656,43 @@ if __name__ == "__main__":
         data2 = data2.loc[(data2['e0']!=1) & (data2['e1']!=1) & (data2['e2']!=1),]
       print(data2)
 
-
+#############
+  
       features_gasperini = data2
-      ActivityFeatures = features_gasperini[['GeneSymbol', 'TargetGeneExpression', 'TargetGenePromoterActivityQuantile', 'TargetGeneIsExpressed', 'H3K27ac.RPKM.quantile.TSS1Kb', 'H3K4me3.RPKM.quantile.TSS1Kb', 'H3K27me3.RPKM.quantile.TSS1Kb', 'Enhancer.count']].copy()
+      ActivityFeatures = features_gasperini[['GeneSymbol', 'TargetGeneExpression', 'H3K27ac.RPKM.quantile.TSS1Kb', 'H3K4me3.RPKM.quantile.TSS1Kb', 'H3K27me3.RPKM.quantile.TSS1Kb']].copy()
+      ActivityFeatures.rename(columns={'H3K27ac.RPKM.quantile.TSS1Kb':'H3K27ac.RPKM.quantile_TSS', 'H3K4me3.RPKM.quantile.TSS1Kb':'H3K4me3.RPKM.quantile_TSS', 'H3K27me3.RPKM.quantile.TSS1Kb':'H3K27me3.RPKM.quantile_TSS'}, inplace=True)
       ActivityFeatures = ActivityFeatures.dropna()
       ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
-      hicfeatures = features_gasperini[['ABC.Score.mean', 'ABC.Score.Numerator.sum', 'joined.ABC.sum', 'joined.ABC.max']].copy()
+      hicfeatures = features_gasperini[['Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'max.contact.to.TSS', 'total.contact.to.TSS' ]].copy()
       hicfeatures = hicfeatures.dropna()
-      TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)').copy()
+      TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)|(NMF)').copy()
       TFfeatures = TFfeatures.dropna()
-      TF_nmf_reduced_features = DR_NMF_features(TFfeatures)
       crisprfeatures = features_gasperini[['Significant']].copy()
       crisprfeatures = crisprfeatures.dropna()
-      groupfeatures = None
-      if 'group' in features_gasperini.columns:
-        groupfeatures = features_gasperini[['group']].copy()
-      
+      groupfeatures = features_gasperini[['group']].copy()
+
       features = ActivityFeatures.copy()
       features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
       features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
-      features = pd.merge(features, TF_nmf_reduced_features, left_index=True, right_index=True)
-      data = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
-      if groupfeatures is not None:
-        data = pd.merge(data, groupfeatures, left_index=True, right_index=True)
+      features = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
+      data = pd.merge(features, groupfeatures, left_index=True, right_index=True)
       ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
       hicfeatures = data.iloc[:, ActivityFeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]]
       TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
-      TF_nmf_reduced_features = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]+TF_nmf_reduced_features.shape[1]]
-       
+      #crisprfeatures = data.iloc[:, -3:]
       crisprfeatures = data[['Significant']]
-      if 'group' in data.columns:
-        groupfeatures = data[['group']]
+      groupfeatures = data[['group']]
       f1 = set(list(features.columns))
-      if groupfeatures is not None:
-        features = data.iloc[:, :data.shape[1]-crisprfeatures.shape[1]-groupfeatures.shape[1]]
-      else:
-        features = data.iloc[:, :data.shape[1]-crisprfeatures.shape[1]]
+      #features = data.iloc[:, :data.shape[1]-3]
+      features = data.iloc[:, :data.shape[1]-crisprfeatures.shape[1]-groupfeatures.shape[1]]
       f2 = set(list(features.columns))
       target = crisprfeatures['Significant'].astype(int)
       groups = groupfeatures
 
-      #abc_score = features['ABC.Score'].values
 
-      #features.drop(columns=['ABC.Score'], axis=1, inplace=True)
+#######################
+
+
       featurelabels = pd.DataFrame({"features":features.columns})
       featurelabels.to_csv(outdir+'/'+study_name_prefix+'.featurelabels.txt', index=False, sep='\t')
 

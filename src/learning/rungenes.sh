@@ -45,8 +45,9 @@ nohup python src/learning/learning_genes.py --dir data/Gasperini/ --outdir run_g
 python src/learning/learning_genes.py --dir data/Gasperini/ --outdir run_genes --port 17203 --studyname genes.2pass --test
 
 
-python src/learning/apply_model.py --outdir apply.genes/ --modelfile run_genes/genes.2pass.save.0.json --scalerfile model/genes.scaler.0.gz  --features data/Gasperini/Gasperini2019.bygene.ABC.TF.grouped.test.txt --targets data/Gasperini/Gasperini2019.bygene.ABC.TF.grouped.test.target.txt  
-python src/learning/apply_model.py --outdir apply.genes/ --modelfile run_genes/genes.2pass.save.1.json --scalerfile model/genes.scaler.1.gz  --features data/Gasperini/Gasperini2019.bygene.ABC.TF.grouped.test.txt --targets data/Gasperini/Gasperini2019.bygene.ABC.TF.grouped.test.target.txt  
-python src/learning/apply_model.py --outdir apply.genes/ --modelfile run_genes/genes.2pass.save.2.json --scalerfile model/genes.scaler.2.gz  --features data/Gasperini/Gasperini2019.bygene.ABC.TF.grouped.test.txt --targets data/Gasperini/Gasperini2019.bygene.ABC.TF.grouped.test.target.txt  
+python src/learning/apply_model_genes.py --outdir apply.genes/ --modelfile run_genes/genes.2pass.save.0.json --scalerfile model/genes.scaler.0.gz  --features data/Gasperini/Gasperini2019.bygene.ABC.TF.grouped.test.txt --targets data/Gasperini/Gasperini2019.bygene.ABC.TF.grouped.test.target.txt  
+python src/learning/apply_model_genes.py --outdir apply.genes/ --modelfile run_genes/genes.2pass.save.1.json --scalerfile model/genes.scaler.1.gz  --features data/Gasperini/Gasperini2019.bygene.ABC.TF.grouped.test.txt --targets data/Gasperini/Gasperini2019.bygene.ABC.TF.grouped.test.target.txt  
+python src/learning/apply_model_genes.py --outdir apply.genes/ --modelfile run_genes/genes.2pass.save.2.json --scalerfile model/genes.scaler.2.gz  --features data/Gasperini/Gasperini2019.bygene.ABC.TF.grouped.test.txt --targets data/Gasperini/Gasperini2019.bygene.ABC.TF.grouped.test.target.txt  
 
 
+python src/learning/runshap.py --modeldir run_genes/ --studyname genes --outdir apply.genes/shap/ --nfold 3 --ID GeneSymbol

@@ -2,7 +2,7 @@
 set -uex
 
 DATADIR=data/Gasperini
-#DATADIR=data/Gasperini.newTFs
+#DATADIR=$DATADIR.newTFs
 CRISPRFILE=$DATADIR/Gasperini2019.at_scale_screen.cand_enhancer_x_exprsd_genes.200503.csv
 ABCOUTDIR=/scratch/han_lab/mhan/ABC-Enhancer-Gene-Prediction/Gasperini/
 TFFILE=data/ucsc/encRegTfbsClusteredWithK562.hg19.bed
@@ -41,40 +41,40 @@ ln -s $ABCOUTDIR/Neighborhoods.H3K27me3/GeneList.txt ${DATADIR}/GeneList.H3K27me
 python src/preprocess/overlap.gasperini.py
 
 # calculate indirect ABC scores
-#python src/network/calculate_abic.py  --netdir data/epgraph.Gasperini.K562/ --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.txt  
+#python src/network/calculate_abic.py  --netdir data/epgraph.Gasperini.K562/ --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.txt  
 
 # group by chromosomal position for groupCV
-python src/preprocess/groupbypos.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.txt 
+python src/preprocess/groupbypos.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.txt 
 
 # split train-test and fit DR (NMF) to train
-python src/preprocess/split_test_dr_fitnmf.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.txt
+python src/preprocess/split_test_dr_fitnmf.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.txt
 
 # apply DR(NMF) to test
-python src/preprocess/applynmf.py --dir data/Gasperini --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.beforeNMF.txt --NMFdir data/Gasperini/
+python src/preprocess/applynmf.py --dir $DATADIR --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.beforeNMF.txt --NMFdir $DATADIR/
 
 
 # extract rows with genes that have at least 1 significant enhancer
-python src/preprocess/atleast1sig.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt
-python src/preprocess/atleast1sig.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt
+python src/preprocess/atleast1sig.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt
+python src/preprocess/atleast1sig.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt
 
 # extract rows with genes that have greater than 2.5 TargetGeneExpression
-python src/preprocess/hiexp.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt
-python src/preprocess/hiexp.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt
+python src/preprocess/hiexp.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt
+python src/preprocess/hiexp.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt
 
 
 # split data by complexity 
-python src/preprocess/complexity.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt 
-python src/preprocess/complexity.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt --target Gasperini2019.at_scale.ABC.TF.erole.grouped.test.target.txt 
+python src/preprocess/complexity.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt 
+python src/preprocess/complexity.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt --target Gasperini2019.at_scale.ABC.TF.erole.grouped.test.target.txt 
 
 
 
 # generate train and test for gene prediction
 # group by chromosomal position
-python src/preprocess/groupbypos.py --dir data/Gasperini/ --infile Gasperini2019.bygene.ABC.TF.txt
+python src/preprocess/groupbypos.py --dir $DATADIR/ --infile Gasperini2019.bygene.ABC.TF.txt
 
 # split train-test and fit DR (NMF) to train bygene data
-python src/preprocess/split_test_dr_fitnmf.py --dir data/Gasperini/ --infile Gasperini2019.bygene.ABC.TF.grouped.txt 
+python src/preprocess/split_test_dr_fitnmf.py --dir $DATADIR/ --infile Gasperini2019.bygene.ABC.TF.grouped.txt 
 
 # apply DR(NMF) to test
-python src/preprocess/applynmf.py  --dir data/Gasperini/ --infile Gasperini2019.bygene.ABC.TF.grouped.beforeNMF.txt --NMFdir data/Gasperini/ 
+python src/preprocess/applynmf.py  --dir $DATADIR/ --infile Gasperini2019.bygene.ABC.TF.grouped.beforeNMF.txt --NMFdir $DATADIR/ 
 

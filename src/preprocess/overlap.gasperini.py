@@ -34,7 +34,7 @@ ABC['remaining.enhancers.contact.to.TSS'] = ABC['total.contact.to.TSS'] - ABC['h
 ABC_by_enhancer = ABC.groupby('name')
 ABC['TSS.count.near.enhancer'] = ABC_by_enhancer[['name']].transform('count')
 ABC['mean.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('mean')
-ABC['std.contact.from.enhancer'] = ABC_by_gene[['hic_contact']].transform('std')
+ABC['std.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('std')
 ABC['std.contact.from.enhancer'] = ABC['std.contact.from.enhancer'].fillna(0)
 ABC['zscore.contact.from.enhancer'] = (ABC['hic_contact'] - ABC['mean.contact.from.enhancer']) / ABC['std.contact.from.enhancer']
 ABC['zscore.contact.from.enhancer'] = ABC['zscore.contact.from.enhancer'].fillna(0)
@@ -112,7 +112,7 @@ Gasperini_atscale_ABC = pd.merge(Gasperini_atscale2, ABC, left_on=["ABC.id"], ri
 Gasperini_atscale_ABC.drop(Gasperini_atscale_ABC.filter(regex='_y$').columns, axis=1, inplace=True)
 Gasperini_atscale_ABC.to_csv(data_dir+"Gasperini2019.at_scale.ABC.innerjoin.txt", sep='\t')
 Gasperini_ABC_by_gene = Gasperini_atscale_ABC.groupby('TargetGene')
-Gasperini_ABC_by_gene_symbol = Gasperini_ABC_by_gene[['GeneSymbol', 'chr', 'chrTSS',  'startTSS',  'endTSS', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'total.contact.to.TSS']].first()
+Gasperini_ABC_by_gene_symbol = Gasperini_ABC_by_gene[['GeneSymbol', 'chr', 'chrTSS',  'startTSS',  'endTSS', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'max.contact.to.TSS', 'total.contact.to.TSS']].first()
 Gasperini_ABC_by_gene_sig = Gasperini_ABC_by_gene[['Significant', 'TargetGeneIsExpressed']].any()
 Gasperini_ABC_by_gene_means = Gasperini_ABC_by_gene[['TargetGeneTSS', 'TargetGeneExpression','TargetGenePromoterActivityQuantile','H3K27ac.RPKM.quantile.TSS1Kb','H3K4me3.RPKM.quantile.TSS1Kb', 'H3K27me3.RPKM.quantile.TSS1Kb']].mean()
 Gasperini_ABC_by_gene_sums = Gasperini_ABC_by_gene[['ABC.Score']].sum()

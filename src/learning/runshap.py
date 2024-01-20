@@ -33,11 +33,12 @@ if __name__ == "__main__":
   parser.add_argument('--outdir', default='.', help="directory to save shap results")
   parser.add_argument('--chr', default='all', help="chromosome")
   parser.add_argument('--nfold', default=4, help="n outer fold")
+  parser.add_argument('--ID', default='ABC.id', help="n outer fold")
 
   args=parser.parse_args()
   pid = os.getpid()
 
-  nfold = args.nfold
+  nfold = int(args.nfold)
   modeldir = args.modeldir
   studyname = args.studyname
   outdir = args.outdir
@@ -51,8 +52,6 @@ if __name__ == "__main__":
 
   filenamesuffix = ''
 
-  IDcolname = 'ABC.id'
-  #IDcolname = 'GeneSymbol'
 
   plt.rcParams.update({'font.size': 14})
 
