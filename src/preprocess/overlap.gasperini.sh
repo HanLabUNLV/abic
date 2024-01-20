@@ -3,9 +3,9 @@ set -uex
 
 DATADIR=data/Gasperini
 #DATADIR=data/Gasperini.newTFs
-CRISPRFILE=/data8/han_lab/mhan/abic/$DATADIR/Gasperini2019.at_scale_screen.cand_enhancer_x_exprsd_genes.200503.csv
-ABCOUTDIR=/data8/han_lab/mhan/ABC-Enhancer-Gene-Prediction.bak/Gasperini/ABC_output
-TFFILE=/data8/han_lab/mhan/abic/data/ucsc/encRegTfbsClusteredWithK562.hg19.bed
+CRISPRFILE=$DATADIR/Gasperini2019.at_scale_screen.cand_enhancer_x_exprsd_genes.200503.csv
+ABCOUTDIR=/scratch/han_lab/mhan/ABC-Enhancer-Gene-Prediction/Gasperini/
+TFFILE=data/ucsc/encRegTfbsClusteredWithK562.hg19.bed
 #TFFILE=/data8/han_lab/mhan/abic/data/encodeTF2/consolidatedEncodeTFBS.bed
 awk -F"," '{print $3"\t"$4"\t"$5"\t"$2}' $CRISPRFILE  | sed 's/"//g' | awk -F":" 'NR>1 {print $1}' | sort -k1,1 -k2,2n -k3,3n | uniq > $DATADIR/Gasperini2019.enhancer.bed
 awk -F"," '{print $6"\t"$7-500"\t"$8+500"\t"$14"\t0\t"$10}' $CRISPRFILE | sed 's/"//g' | awk 'NR>1' | sort -k1,1 -k2,2n -k3,3n | uniq > $DATADIR/Gasperini2019.TSS.bed
@@ -26,14 +26,14 @@ bedtools intersect -wo -e -f 0.3 -F 0.3 -a $DATADIR/Gasperini2019.enhancer.bed -
 bedtools intersect -wo -e -f 0.3 -F 0.3 -a $DATADIR/Gasperini2019.TSS.bed -b $TFFILE | sed 's/|/\t/' >> $DATADIR/Gasperini2019.TSS.TF.overlap.bed
 
 
-#ln -s $ABCOUTDIR/Neighborhoods/EnhancerList.txt ${DATADIR}/EnhancerList.txt 
-#ln -s $ABCOUTDIR/Neighborhoods/GeneList.txt ${DATADIR}/GeneList.txt 
-#
-#ln -s $ABCOUTDIR/Neighborhoods.H3K4me3/EnhancerList.txt ${DATADIR}/EnhancerList.H3K4me3.txt 
-#ln -s $ABCOUTDIR/Neighborhoods.H3K4me3/GeneList.txt ${DATADIR}/GeneList.H3K4me3.txt 
-#
-#ln -s $ABCOUTDIR/Neighborhoods.H3K27me3/EnhancerList.txt ${DATADIR}/EnhancerList.H3K27me3.txt 
-#ln -s $ABCOUTDIR/Neighborhoods.H3K27me3/GeneList.txt ${DATADIR}/GeneList.H3K27me3.txt 
+ln -s $ABCOUTDIR/Neighborhoods/EnhancerList.txt ${DATADIR}/EnhancerList.txt 
+ln -s $ABCOUTDIR/Neighborhoods/GeneList.txt ${DATADIR}/GeneList.txt 
+
+ln -s $ABCOUTDIR/Neighborhoods.H3K4me3/EnhancerList.txt ${DATADIR}/EnhancerList.H3K4me3.txt 
+ln -s $ABCOUTDIR/Neighborhoods.H3K4me3/GeneList.txt ${DATADIR}/GeneList.H3K4me3.txt 
+
+ln -s $ABCOUTDIR/Neighborhoods.H3K27me3/EnhancerList.txt ${DATADIR}/EnhancerList.H3K27me3.txt 
+ln -s $ABCOUTDIR/Neighborhoods.H3K27me3/GeneList.txt ${DATADIR}/GeneList.H3K27me3.txt 
 
 
 
@@ -43,17 +43,14 @@ python src/preprocess/overlap.gasperini.py
 # calculate indirect ABC scores
 #python src/network/calculate_abic.py  --netdir data/epgraph.Gasperini.K562/ --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.txt  
 
-
 # group by chromosomal position for groupCV
 python src/preprocess/groupbypos.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.txt 
-
 
 # split train-test and fit DR (NMF) to train
 python src/preprocess/split_test_dr_fitnmf.py --dir data/Gasperini/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.txt
 
 # apply DR(NMF) to test
 python src/preprocess/applynmf.py --dir data/Gasperini --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.beforeNMF.txt --NMFdir data/Gasperini/
-
 
 
 # extract rows with genes that have at least 1 significant enhancer
@@ -72,15 +69,12 @@ python src/preprocess/complexity.py --dir data/Gasperini/ --infile Gasperini2019
 
 
 # generate train and test for gene prediction
-grep -v 'chr5' $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.txt | grep -v 'chr10' | grep -v 'chr15' | grep -v 'chr20' > $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.train.txt
+# group by chromosomal position
+python src/preprocess/groupbypos.py --dir data/Gasperini/ --infile Gasperini2019.bygene.ABC.TF.txt
 
-head -n 1 $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.train.txt > $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.test.txt
-grep 'chr5' $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.txt  >> $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.test.txt
-grep 'chr10' $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.txt  >> $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.test.txt 
-grep 'chr15' $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.txt  >> $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.test.txt
-grep 'chr20' $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.txt  >> $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.test.txt
+# split train-test and fit DR (NMF) to train bygene data
+python src/preprocess/split_test_dr_fitnmf.py --dir data/Gasperini/ --infile Gasperini2019.bygene.ABC.TF.grouped.txt 
 
-awk -F"\t"  '{print $7}' $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.test.txt > $DATADIR/Gasperini2019.bygene.ABC.TF.grouped.test.target.txt
-
-
+# apply DR(NMF) to test
+python src/preprocess/applynmf.py  --dir data/Gasperini/ --infile Gasperini2019.bygene.ABC.TF.grouped.beforeNMF.txt --NMFdir data/Gasperini/ 
 

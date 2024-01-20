@@ -62,15 +62,16 @@ if __name__ == '__main__':
 
   # apply NMF to test
   e_TFfeatures = Xtest.filter(regex='(_e)').copy()
-  NMFprefix='Gasperini2019.eTF.NMF'
-  eNMFinputfeatures = pd.read_csv(NMF_dir+NMFprefix+'.featureinput.txt', sep='\t')
-  missingTF = np.setdiff1d(eNMFinputfeatures['TF'].tolist(), e_TFfeatures.columns.tolist()).tolist()
-  for TF in missingTF:
-    e_TFfeatures[TF] = 0 
-  e_TFfeatures = e_TFfeatures[eNMFinputfeatures['TF']]
-  e_TFfeatures = e_TFfeatures.fillna(0)
-  eTF_nmf_reduced_features = DR_NMF_features_transform(e_TFfeatures, NMF_dir, data_dir, NMFprefix)
-  eTF_nmf_reduced_features = eTF_nmf_reduced_features.add_suffix('_e')
+  if not e_TFfeatures.empty:
+    NMFprefix='Gasperini2019.eTF.NMF'
+    eNMFinputfeatures = pd.read_csv(NMF_dir+NMFprefix+'.featureinput.txt', sep='\t')
+    missingTF = np.setdiff1d(eNMFinputfeatures['TF'].tolist(), e_TFfeatures.columns.tolist()).tolist()
+    for TF in missingTF:
+      e_TFfeatures[TF] = 0 
+    e_TFfeatures = e_TFfeatures[eNMFinputfeatures['TF']]
+    e_TFfeatures = e_TFfeatures.fillna(0)
+    eTF_nmf_reduced_features = DR_NMF_features_transform(e_TFfeatures, NMF_dir, data_dir, NMFprefix)
+    eTF_nmf_reduced_features = eTF_nmf_reduced_features.add_suffix('_e')
 
   TSS_TFfeatures = Xtest.filter(regex='(_TSS)').copy()
   NMFprefix='Gasperini2019.TSSTF.NMF'
@@ -82,7 +83,10 @@ if __name__ == '__main__':
   TSSTF_nmf_reduced_features = DR_NMF_features_transform(TSS_TFfeatures, NMF_dir, data_dir, NMFprefix)
   TSSTF_nmf_reduced_features = TSSTF_nmf_reduced_features.add_suffix('_TSS')
 
-  Xtest = pd.concat([Xtest, eTF_nmf_reduced_features, TSSTF_nmf_reduced_features], axis=1)
+  if not e_TFfeatures.empty:
+    Xtest = pd.concat([Xtest, eTF_nmf_reduced_features, TSSTF_nmf_reduced_features], axis=1)
+  else:
+    Xtest = pd.concat([Xtest, TSSTF_nmf_reduced_features], axis=1)
   Xtest = Xtest.loc[:,~Xtest.columns.str.match("Unnamed")]
   Xtest.to_csv(data_dir+infile_base+".test.txt", sep='\t')
   ytest.to_csv(data_dir+infile_base+".test.target.txt", sep='\t')
