@@ -72,20 +72,26 @@ if __name__ == "__main__":
   ActivityFeatures.rename(columns={'H3K27ac.RPKM.quantile.TSS1Kb':'H3K27ac.RPKM.quantile_TSS', 'H3K4me3.RPKM.quantile.TSS1Kb':'H3K4me3.RPKM.quantile_TSS', 'H3K27me3.RPKM.quantile.TSS1Kb':'H3K27me3.RPKM.quantile_TSS'}, inplace=True)
   ActivityFeatures = ActivityFeatures.dropna()
   ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
-  hicfeatures = X_test[['Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'max.contact.to.TSS', 'total.contact.to.TSS' ]].copy()
-  hicfeatures = hicfeatures.dropna()
+  hicfeatures = X_test[['joined.ABC.sum', 'joined.ABC.max', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'max.contact.to.TSS', 'total.contact.to.TSS' ]].copy()
+  hicfeatures = hicfeatures.fillna(0)
   TFfeatures = X_test.filter(regex='(_e)|(_TSS)|(NMF)').copy()
   TFfeatures = TFfeatures.dropna()
+  SCCfeatures = X_test.filter(regex='(_contact)').copy()
+  SCCfeatures = SCCfeatures.replace('.', np.nan)
+  SCCfeatures = SCCfeatures.astype(float)
+  SCCfeatures = SCCfeatures.fillna(0)
 
   # merge features
   features = ActivityFeatures.copy()
   features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
   features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
+  features = pd.merge(features, SCCfeatures, left_index=True, right_index=True)
   data = features.copy()
 
   ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
   hicfeatures = data.iloc[:, ActivityFeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]]
   TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
+  SCCfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]+SCCfeatures.shape[1]]
   X_test.filter(items = data.index,axis=0).to_csv(outdir+'/applyinput.txt', sep='\t') # save the input file after filtering rows and before filtering columns. 
   X_test = data
 

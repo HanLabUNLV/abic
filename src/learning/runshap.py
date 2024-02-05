@@ -43,6 +43,7 @@ if __name__ == "__main__":
   studyname = args.studyname
   outdir = args.outdir
   chromosome = args.chr
+  IDcolname = args.ID
   scalerfile = ''
   modelfile = ''
   features = ''

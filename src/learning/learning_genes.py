@@ -273,6 +273,8 @@ class OuterFolds:
     def preprocess(self, X, y, group, scaler_dump):
         X = X.drop(columns = ['GeneSymbol'])
         cols = X.columns
+        print(X.columns)
+        print(X)
         if os.path.exists(scaler_dump):
             scaler = joblib.load(scaler_dump)
         else: 
@@ -400,7 +402,7 @@ class OuterFolds:
         features_to_keep = np.append(features_to_keep, ['GeneSymbol'])
         features_to_drop = np.setdiff1d(featurenames, features_to_keep)
         print(features_to_drop)
-        np.savetxt(self.outdir+'/'+new_study_name_prefix+'.features_dropped.txt', np.transpose([features_to_keep]), fmt="%s") 
+        np.savetxt(self.outdir+'/'+new_study_name_prefix+'.features_kept.txt', np.transpose([features_to_keep]), fmt="%s") 
         for outer_index in range(self.nfold):
             src_path = self.outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt'
             #X_split = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
@@ -663,10 +665,14 @@ if __name__ == "__main__":
       ActivityFeatures.rename(columns={'H3K27ac.RPKM.quantile.TSS1Kb':'H3K27ac.RPKM.quantile_TSS', 'H3K4me3.RPKM.quantile.TSS1Kb':'H3K4me3.RPKM.quantile_TSS', 'H3K27me3.RPKM.quantile.TSS1Kb':'H3K27me3.RPKM.quantile_TSS'}, inplace=True)
       ActivityFeatures = ActivityFeatures.dropna()
       ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
-      hicfeatures = features_gasperini[['Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'max.contact.to.TSS', 'total.contact.to.TSS' ]].copy()
-      hicfeatures = hicfeatures.dropna()
+      hicfeatures = features_gasperini[['joined.ABC.sum', 'joined.ABC.max', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'max.contact.to.TSS', 'total.contact.to.TSS' ]].copy()
+      hicfeatures = hicfeatures.fillna(0)
       TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)|(NMF)').copy()
       TFfeatures = TFfeatures.dropna()
+      SCCfeatures = features_gasperini.filter(regex='(_contact)').copy()
+      SCCfeatures = SCCfeatures.replace('.', np.nan)
+      SCCfeatures = SCCfeatures.astype(float)
+      SCCfeatures = SCCfeatures.fillna(0)
       crisprfeatures = features_gasperini[['Significant']].copy()
       crisprfeatures = crisprfeatures.dropna()
       groupfeatures = features_gasperini[['group']].copy()
@@ -674,11 +680,13 @@ if __name__ == "__main__":
       features = ActivityFeatures.copy()
       features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
       features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
+      features = pd.merge(features, SCCfeatures, left_index=True, right_index=True)
       features = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
       data = pd.merge(features, groupfeatures, left_index=True, right_index=True)
       ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
       hicfeatures = data.iloc[:, ActivityFeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]]
       TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
+      SCCfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]+SCCfeatures.shape[1]]
       #crisprfeatures = data.iloc[:, -3:]
       crisprfeatures = data[['Significant']]
       groupfeatures = data[['group']]

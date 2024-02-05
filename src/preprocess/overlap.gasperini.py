@@ -117,8 +117,10 @@ Gasperini_ABC_by_gene_sig = Gasperini_ABC_by_gene[['Significant', 'TargetGeneIsE
 Gasperini_ABC_by_gene_means = Gasperini_ABC_by_gene[['TargetGeneTSS', 'TargetGeneExpression','TargetGenePromoterActivityQuantile','H3K27ac.RPKM.quantile.TSS1Kb','H3K4me3.RPKM.quantile.TSS1Kb', 'H3K27me3.RPKM.quantile.TSS1Kb']].mean()
 Gasperini_ABC_by_gene_sums = Gasperini_ABC_by_gene[['ABC.Score']].sum()
 Gasperini_ABC_by_gene_sums = Gasperini_ABC_by_gene_sums.rename(columns={'ABC.Score': 'joined.ABC.sum'})
+Gasperini_ABC_by_gene_sums['joined.ABC.sum'] = Gasperini_ABC_by_gene_sums['joined.ABC.sum'].fillna(0)
 Gasperini_ABC_by_gene_maxs = Gasperini_ABC_by_gene[['ABC.Score']].max()
 Gasperini_ABC_by_gene_maxs = Gasperini_ABC_by_gene_maxs.rename(columns={'ABC.Score': 'joined.ABC.max'})
+Gasperini_ABC_by_gene_maxs['joined.ABC.max'] = Gasperini_ABC_by_gene_maxs['joined.ABC.max'].fillna(0)
 Gasperini_ABC_by_genes = pd.concat([Gasperini_ABC_by_gene_symbol, Gasperini_ABC_by_gene_sig, Gasperini_ABC_by_gene_means, Gasperini_ABC_by_gene_sums, Gasperini_ABC_by_gene_maxs], axis=1)
 
 
