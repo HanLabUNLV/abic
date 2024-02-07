@@ -74,19 +74,21 @@ if __name__ == '__main__':
     eTF_nmf_reduced_features = eTF_nmf_reduced_features.add_suffix('_e')
 
   TSS_TFfeatures = Xtest.filter(regex='(_TSS)').copy()
-  NMFprefix='Gasperini2019.TSSTF.NMF'
-  TSSNMFinputfeatures = pd.read_csv(NMF_dir+NMFprefix+'.featureinput.txt', sep='\t')
-  missingTF = np.setdiff1d(TSSNMFinputfeatures['TF'].tolist(), TSS_TFfeatures.columns.tolist()).tolist()
-  for TF in missingTF:
-    TSS_TFfeatures[TF] = 0 
-  TSS_TFfeatures = TSS_TFfeatures[TSSNMFinputfeatures['TF']]
-  TSSTF_nmf_reduced_features = DR_NMF_features_transform(TSS_TFfeatures, NMF_dir, data_dir, NMFprefix)
-  TSSTF_nmf_reduced_features = TSSTF_nmf_reduced_features.add_suffix('_TSS')
+  if not TSS_TFfeatures.empty:
+    NMFprefix='Gasperini2019.TSSTF.NMF'
+    TSSNMFinputfeatures = pd.read_csv(NMF_dir+NMFprefix+'.featureinput.txt', sep='\t')
+    missingTF = np.setdiff1d(TSSNMFinputfeatures['TF'].tolist(), TSS_TFfeatures.columns.tolist()).tolist()
+    for TF in missingTF:
+      TSS_TFfeatures[TF] = 0 
+    TSS_TFfeatures = TSS_TFfeatures[TSSNMFinputfeatures['TF']]
+    TSSTF_nmf_reduced_features = DR_NMF_features_transform(TSS_TFfeatures, NMF_dir, data_dir, NMFprefix)
+    TSSTF_nmf_reduced_features = TSSTF_nmf_reduced_features.add_suffix('_TSS')
 
   if not e_TFfeatures.empty:
-    Xtest = pd.concat([Xtest, eTF_nmf_reduced_features, TSSTF_nmf_reduced_features], axis=1)
-  else:
+    Xtest = pd.concat([Xtest, eTF_nmf_reduced_features], axis=1)
+  if not TSS_TFfeatures.empty:
     Xtest = pd.concat([Xtest, TSSTF_nmf_reduced_features], axis=1)
+
   Xtest = Xtest.loc[:,~Xtest.columns.str.match("Unnamed")]
   Xtest.to_csv(data_dir+infile_base+".test.txt", sep='\t')
   ytest.to_csv(data_dir+infile_base+".test.target.txt", sep='\t')

@@ -71,10 +71,16 @@ python src/preprocess/complexity.py --dir $DATADIR/ --infile Gasperini2019.at_sc
 # generate train and test for gene prediction
 # group by chromosomal position
 python src/preprocess/groupbypos.py --dir $DATADIR/ --infile Gasperini2019.bygene.ABC.TF.txt
-
 # split train-test and fit DR (NMF) to train bygene data
 python src/preprocess/split_test_dr_fitnmf.py --dir $DATADIR/ --infile Gasperini2019.bygene.ABC.TF.grouped.txt 
-
 # apply DR(NMF) to test
 python src/preprocess/applynmf.py  --dir $DATADIR/ --infile Gasperini2019.bygene.ABC.TF.grouped.beforeNMF.txt --NMFdir $DATADIR/ 
+
+# generate train and test for enhancer prediction
+# group by chromosomal position
+python src/preprocess/groupbypos.py --dir $DATADIR/ --infile Gasperini2019.byenhancer.ABC.TF.txt
+# split train-test and fit DR (NMF) to train byenhancer data
+python src/preprocess/split_test_dr_fitnmf.py --dir $DATADIR/ --infile Gasperini2019.byenhancer.ABC.TF.grouped.txt 
+# apply DR(NMF) to test
+python src/preprocess/applynmf.py  --dir $DATADIR/ --infile Gasperini2019.byenhancer.ABC.TF.grouped.beforeNMF.txt --NMFdir $DATADIR/ 
 

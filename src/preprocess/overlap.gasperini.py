@@ -111,6 +111,7 @@ ABC.drop(ABC.filter(regex='_y$').columns, axis=1, inplace=True)
 Gasperini_atscale_ABC = pd.merge(Gasperini_atscale2, ABC, left_on=["ABC.id"], right_on=["chr:start-end_TargetGene"], suffixes=('', '_y'))
 Gasperini_atscale_ABC.drop(Gasperini_atscale_ABC.filter(regex='_y$').columns, axis=1, inplace=True)
 Gasperini_atscale_ABC.to_csv(data_dir+"Gasperini2019.at_scale.ABC.innerjoin.txt", sep='\t')
+# by_gene
 Gasperini_ABC_by_gene = Gasperini_atscale_ABC.groupby('TargetGene')
 Gasperini_ABC_by_gene_symbol = Gasperini_ABC_by_gene[['GeneSymbol', 'chr', 'chrTSS',  'startTSS',  'endTSS', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'max.contact.to.TSS', 'total.contact.to.TSS']].first()
 Gasperini_ABC_by_gene_sig = Gasperini_ABC_by_gene[['Significant', 'TargetGeneIsExpressed']].any()
@@ -122,6 +123,19 @@ Gasperini_ABC_by_gene_maxs = Gasperini_ABC_by_gene[['ABC.Score']].max()
 Gasperini_ABC_by_gene_maxs = Gasperini_ABC_by_gene_maxs.rename(columns={'ABC.Score': 'joined.ABC.max'})
 Gasperini_ABC_by_gene_maxs['joined.ABC.max'] = Gasperini_ABC_by_gene_maxs['joined.ABC.max'].fillna(0)
 Gasperini_ABC_by_genes = pd.concat([Gasperini_ABC_by_gene_symbol, Gasperini_ABC_by_gene_sig, Gasperini_ABC_by_gene_means, Gasperini_ABC_by_gene_sums, Gasperini_ABC_by_gene_maxs], axis=1)
+# by_enhancer
+Gasperini_ABC_by_enhancer = Gasperini_atscale_ABC.groupby('enhancerID')
+Gasperini_ABC_by_enhancer_symbol = Gasperini_ABC_by_enhancer[['enhancerID', 'chr', 'chrEnhancer',  'startEnhancer',  'endEnhancer', 'TSS.count.near.enhancer', 'mean.contact.from.enhancer', 'max.contact.from.enhancer', 'total.contact.from.enhancer']].first()
+Gasperini_ABC_by_enhancer_sig = Gasperini_ABC_by_enhancer[['Significant']].any()
+Gasperini_ABC_by_enhancer_means = Gasperini_ABC_by_enhancer[['normalized_dhs', 'normalized_h3K27ac','normalized_h3K4me3', 'normalized_h3K27me3']].mean()
+Gasperini_ABC_by_enhancer_sums = Gasperini_ABC_by_enhancer[['ABC.Score']].sum()
+Gasperini_ABC_by_enhancer_sums = Gasperini_ABC_by_enhancer_sums.rename(columns={'ABC.Score': 'joined.ABC.sum'})
+Gasperini_ABC_by_enhancer_sums['joined.ABC.sum'] = Gasperini_ABC_by_enhancer_sums['joined.ABC.sum'].fillna(0)
+Gasperini_ABC_by_enhancer_maxs = Gasperini_ABC_by_enhancer[['ABC.Score']].max()
+Gasperini_ABC_by_enhancer_maxs = Gasperini_ABC_by_enhancer_maxs.rename(columns={'ABC.Score': 'joined.ABC.max'})
+Gasperini_ABC_by_enhancer_maxs['joined.ABC.max'] = Gasperini_ABC_by_enhancer_maxs['joined.ABC.max'].fillna(0)
+Gasperini_ABC_by_enhancers = pd.concat([Gasperini_ABC_by_enhancer_symbol, Gasperini_ABC_by_enhancer_sig, Gasperini_ABC_by_enhancer_means, Gasperini_ABC_by_enhancer_sums, Gasperini_ABC_by_enhancer_maxs], axis=1)
+
 
 
 
@@ -174,11 +188,19 @@ TSS_TF_pivot.to_csv(data_dir+"Gasperini2019.TSS.TF.txt", sep='\t')
 TFcolumns = set().union(list(enhancer_TF_pivot.columns), list(TSS_TF_pivot.columns))  
 TFcolumnsdf = pd.DataFrame(TFcolumns, columns=['features'])
 
-# join TF to bygene
+# join TF to by_gene
 Gasperini_ABC_by_genes = pd.merge(Gasperini_ABC_by_genes, TSS_TF_pivot, how="left", left_on=["GeneSymbol"], right_on=["gene"], suffixes=('', '_y'))
 Gasperini_ABC_by_genes.drop(Gasperini_ABC_by_genes.filter(regex='_y$').columns, axis=1, inplace=True)
 Gasperini_ABC_by_genes.loc[:,list(TSS_TF_pivot.columns)] = Gasperini_ABC_by_genes.loc[:,list(TSS_TF_pivot.columns)].fillna(0)
 Gasperini_ABC_by_genes.to_csv(data_dir+"Gasperini2019.bygene.ABC.TF.txt", sep='\t')
+
+# join TF to by_enhancer
+Gasperini_ABC_by_enhancers.reset_index(drop=True, inplace=True)
+Gasperini_ABC_by_enhancers = pd.merge(Gasperini_ABC_by_enhancers, enhancer_TF_pivot, how="left", left_on=["enhancerID"], right_on=["ID"], suffixes=('', '_y'))
+Gasperini_ABC_by_enhancers.drop(Gasperini_ABC_by_enhancers.filter(regex='_y$').columns, axis=1, inplace=True)
+Gasperini_ABC_by_enhancers.loc[:,list(enhancer_TF_pivot.columns)] = Gasperini_ABC_by_enhancers.loc[:,list(enhancer_TF_pivot.columns)].fillna(0)
+Gasperini_ABC_by_enhancers.to_csv(data_dir+"Gasperini2019.byenhancer.ABC.TF.txt", sep='\t')
+
 
 # join TF to ABC
 Gasperini_atscale_ABC = pd.merge(Gasperini_atscale_ABC, enhancer_TF_pivot, how="left", left_on=["enhancerID"], right_on=["ID"], suffixes=('', '_y'))

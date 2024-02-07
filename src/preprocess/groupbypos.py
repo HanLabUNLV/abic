@@ -34,7 +34,7 @@ def group_by_TSS_pos(arg_df):
 
 def group_by_enhancer_pos(arg_df):
   arg_df['midbin'] = round(arg_df[['startEnhancer', 'endEnhancer']].mean(axis=1)/1000000)
-  arg_df = arg_df.sort_values(['startEnhancer', 'startTSS'], ascending=[True, True])
+  arg_df = arg_df.sort_values(['startEnhancer'], ascending=[True])
   arg_df['group'] = 'NA'
   binshift = list(arg_df['midbin'].iloc[1:])
   binshift.append(binshift[len(binshift)-1])  

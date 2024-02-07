@@ -114,16 +114,17 @@ if __name__ == '__main__':
     eTF_nmf_reduced_features = eTF_nmf_reduced_features.add_suffix('_e')
 
   TSS_TFfeatures = Xtrain.filter(regex='(_TSS)').copy()
-  #TSS_TFfeatures =  Xtrain.loc[:,list(TSS_TF_pivot.columns)]
-  NMFprefix='Gasperini2019.TSSTF.NMF'
-  #pd.DataFrame(TSS_TF_pivot.columns, columns=['TF']).to_csv(data_dir+NMFprefix+'.featureinput.txt', sep='\t')
-  pd.DataFrame(TSS_TFfeatures.columns, columns=['TF']).to_csv(data_dir+NMFprefix+'.featureinput.txt', sep='\t')
-  TSSTF_nmf_reduced_features = DR_NMF_features_fit(TSS_TFfeatures, data_dir, 'Gasperini2019.TSSTF.NMF')
-  TSSTF_nmf_reduced_features = TSSTF_nmf_reduced_features.add_suffix('_TSS')
+  if not TSS_TFfeatures.empty:
+    #TSS_TFfeatures =  Xtrain.loc[:,list(TSS_TF_pivot.columns)]
+    NMFprefix='Gasperini2019.TSSTF.NMF'
+    #pd.DataFrame(TSS_TF_pivot.columns, columns=['TF']).to_csv(data_dir+NMFprefix+'.featureinput.txt', sep='\t')
+    pd.DataFrame(TSS_TFfeatures.columns, columns=['TF']).to_csv(data_dir+NMFprefix+'.featureinput.txt', sep='\t')
+    TSSTF_nmf_reduced_features = DR_NMF_features_fit(TSS_TFfeatures, data_dir, 'Gasperini2019.TSSTF.NMF')
+    TSSTF_nmf_reduced_features = TSSTF_nmf_reduced_features.add_suffix('_TSS')
 
   if not e_TFfeatures.empty:
-    Xtrain = pd.concat([Xtrain, eTF_nmf_reduced_features, TSSTF_nmf_reduced_features], axis=1)
-  else:
+    Xtrain = pd.concat([Xtrain, eTF_nmf_reduced_features], axis=1)
+  if not TSS_TFfeatures.empty:
     Xtrain = pd.concat([Xtrain, TSSTF_nmf_reduced_features], axis=1)
 
   Xtrain.to_csv(data_dir+infile_base+".train.txt", sep='\t')
