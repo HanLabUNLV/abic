@@ -8,7 +8,7 @@ data_dir = "data/Fulco/"
 Fulco_enhancer = pd.read_csv(data_dir+"Fulco2019.enhancer.ABC.overlap.bed", sep='\t')
 Fulco_TSS = pd.read_csv(data_dir+"Fulco2019.TSS.ABC.overlap.bed", sep='\t')
 Fulco_crispr = pd.read_csv(data_dir+"Fulco2019.STable6a.tab", sep="\t")
-Fulco_crispr['Adjusted p-value'] = Fulco_crispr['Adjusted p-value'].fillna(1)
+#Fulco_crispr['Adjusted p-value'] = Fulco_crispr['Adjusted p-value'].fillna(1)
 
 
 ABC = pd.read_csv(data_dir+"ABC.EnhancerPredictionsAllPutative.txt", sep='\t')
@@ -26,7 +26,7 @@ ABC['remaining.enhancers.contact.to.TSS'] = ABC['total.contact.to.TSS'] - ABC['h
 ABC_by_enhancer = ABC.groupby('name')
 ABC['TSS.count.near.enhancer'] = ABC_by_enhancer[['name']].transform('count')
 ABC['mean.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('mean')
-ABC['std.contact.from.enhancer'] = ABC_by_gene[['hic_contact']].transform('std')
+ABC['std.contact.from.enhancer'] = ABC_by_enhancer[['hic_contact']].transform('std')
 ABC['std.contact.from.enhancer'] = ABC['std.contact.from.enhancer'].fillna(0)
 ABC['zscore.contact.from.enhancer'] = (ABC['hic_contact'] - ABC['mean.contact.from.enhancer']) / ABC['std.contact.from.enhancer']
 ABC['zscore.contact.from.enhancer'] = ABC['zscore.contact.from.enhancer'].fillna(0)

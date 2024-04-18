@@ -3,15 +3,12 @@ set -uex
 
 DATADIR=data/Gasperini
 #DATADIR=$DATADIR.newTFs
-#CRISPRFILE=$DATADIR/Gasperini2019.at_scale_screen.cand_enhancer_x_exprsd_genes.200503.csv
-CRISPRFILE=$DATADIR/GSE120861_all_deg_results.at_scale.dropNA.dropTSS.mapID.txt 
-ABCOUTDIR=/data8/han_lab/mhan/ABC-Enhancer-Gene-Prediction.bak/Gasperini/ABC_output/
+CRISPRFILE=$DATADIR/Gasperini2019.at_scale_screen.cand_enhancer_x_exprsd_genes.200503.csv
+ABCOUTDIR=/data8/han_lab/mhan/ABC-Enhancer-Gene-Prediction/example_fulco2019/ABC_output/
 TFFILE=data/ucsc/encRegTfbsClusteredWithK562.hg19.bed
 #TFFILE=/data8/han_lab/mhan/abic/data/encodeTF2/consolidatedEncodeTFBS.bed
-awk -F"\t" '{print $12"\t"$13"\t"$14"\t"$1}' $CRISPRFILE  | sed 's/"//g' | awk -F":" 'NR>1 {print $1}' | sort -k1,1 -k2,2n -k3,3n | uniq > $DATADIR/Gasperini2019.enhancer.bed
-#awk -F"," '{print $3"\t"$4"\t"$5"\t"$2}' $CRISPRFILE  | sed 's/"//g' | awk -F":" 'NR>1 {print $1}' | sort -k1,1 -k2,2n -k3,3n | uniq > $DATADIR/Gasperini2019.enhancer.bed
-awk -F"\t" '{print $15"\t"$16-500"\t"$17+500"\t"$9"\t0\t"$18}' $CRISPRFILE | sed 's/"//g' | awk 'NR>1' | sort -k1,1 -k2,2n -k3,3n | uniq > $DATADIR/Gasperini2019.TSS.bed
-#awk -F"," '{print $6"\t"$7-500"\t"$8+500"\t"$14"\t0\t"$10}' $CRISPRFILE | sed 's/"//g' | awk 'NR>1' | sort -k1,1 -k2,2n -k3,3n | uniq > $DATADIR/Gasperini2019.TSS.bed
+awk -F"," '{print $3"\t"$4"\t"$5"\t"$2}' $CRISPRFILE  | sed 's/"//g' | awk -F":" 'NR>1 {print $1}' | sort -k1,1 -k2,2n -k3,3n | uniq > $DATADIR/Gasperini2019.enhancer.bed
+awk -F"," '{print $6"\t"$7-500"\t"$8+500"\t"$14"\t0\t"$10}' $CRISPRFILE | sed 's/"//g' | awk 'NR>1' | sort -k1,1 -k2,2n -k3,3n | uniq > $DATADIR/Gasperini2019.TSS.bed
 
 echo -e "G.chr\tG.start\tG.end\tG.id\tABC.chr\tABC.start\tABC.end\tABC.class\tABC.id\toverlap" > $DATADIR/Gasperini2019.enhancer.ABC.overlap.bed
 bedtools intersect -wo -e -f 0.3 -F 0.3 -a $DATADIR/Gasperini2019.enhancer.bed -b $ABCOUTDIR/Neighborhoods/EnhancerList.bed | sed 's/|/\t/' >> $DATADIR/Gasperini2019.enhancer.ABC.overlap.bed
@@ -55,10 +52,16 @@ python src/preprocess/split_test_dr_fitnmf.py --dir $DATADIR/ --infile Gasperini
 # apply DR(NMF) to test
 python src/preprocess/applynmf.py --dir $DATADIR --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.beforeNMF.txt --NMFdir $DATADIR/
 
+# drop NA from pValueAdjusted
+python src/preprocess/dropna.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt
+python src/preprocess/dropna.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt
+
+
+
 
 # extract rows with genes that have at least 1 significant enhancer
-python src/preprocess/atleast1sig.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt
-python src/preprocess/atleast1sig.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt
+python src/preprocess/atleast1sig.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.dropna.txt
+python src/preprocess/atleast1sig.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.dropna.txt
 
 # extract rows with genes that have greater than 2.5 TargetGeneExpression
 python src/preprocess/hiexp.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt

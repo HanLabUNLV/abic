@@ -16,7 +16,8 @@ data_dir = "data/Gasperini/"
 Gasperini_enhancer = pd.read_csv(data_dir+"Gasperini2019.enhancer.ABC.overlap.bed", sep='\t')
 Gasperini_TSS = pd.read_csv(data_dir+"Gasperini2019.TSS.ABC.overlap.bed", sep='\t')
 Gasperini_atscale = pd.read_csv(data_dir+"Gasperini2019.at_scale_screen.cand_enhancer_x_exprsd_genes.200503.csv")
-Gasperini_atscale['pValueAdjusted'] = Gasperini_atscale['pValueAdjusted'].fillna(1)
+#Gasperini_atscale = pd.read_csv(data_dir+"GSE120861_all_deg_results.at_scale.txt", sep='\t')
+#Gasperini_atscale['pValueAdjusted'] = Gasperini_atscale['pValueAdjusted'].fillna(1)
 #Gasperini_atscale.dropna(subset=['pValueAdjusted'], inplace=True)
 
 ABC = pd.read_csv(data_dir+"ABC.EnhancerPredictionsAllPutative.txt", sep='\t')
@@ -138,27 +139,37 @@ Gasperini_ABC_by_enhancers = pd.concat([Gasperini_ABC_by_enhancer_symbol, Gasper
 
 
 
-
+# left join
 Gasperini_atscale_ABC = pd.merge(Gasperini_atscale2, ABC, how="left", left_on=["ABC.id"], right_on=["chr:start-end_TargetGene"], suffixes=('', '_y'))
 Gasperini_atscale_ABC.drop(Gasperini_atscale_ABC.filter(regex='_y$').columns, axis=1, inplace=True)
+Gasperini_atscale_ABC.to_csv(data_dir+"Gasperini2019.at_scale.ABC.leftjoin.withdups.txt", sep='\t')
 remove_dups_not_sig = Gasperini_atscale_ABC.duplicated('ABC.id', keep='first') & ~Gasperini_atscale_ABC['Significant']
 Gasperini_atscale_ABC = Gasperini_atscale_ABC[~remove_dups_not_sig] # remove duplicates leaving first item except when significant
 Gasperini_atscale_ABC = Gasperini_atscale_ABC[~Gasperini_atscale_ABC.duplicated('ABC.id', keep='last')]  # now remove duplicates leaving last (significant)
-Gasperini_atscale_ABC.to_csv(data_dir+"Gasperini2019.at_scale.ABC.leftjoin.txt", sep='\t')
+grouped = Gasperini_atscale_ABC.groupby(['chr', 'start', 'end', 'TargetGene'], as_index=False)
+Gasperini_atscale_ABC_sum = grouped.agg(lambda x: x.sum() if x.name=='ABC.Score' else (x.any() if x.name=='Significant' else (x.max() if np.issubdtype(x.dtype,     np.number) else x.iloc[0])))
+Gasperini_atscale_ABC_sum['Significant'] = Gasperini_atscale_ABC_sum['Significant'].astype('bool')
+Gasperini_atscale_ABC_sum.to_csv(data_dir+"Gasperini2019.at_scale.ABC.sum.leftjoin.txt", sep='\t')
+# inner join
 Gasperini_atscale_ABC = pd.merge(Gasperini_atscale2, ABC, left_on=["ABC.id"], right_on=["chr:start-end_TargetGene"], suffixes=('', '_y'))
 Gasperini_atscale_ABC.drop(Gasperini_atscale_ABC.filter(regex='_y$').columns, axis=1, inplace=True)
+Gasperini_atscale_ABC.to_csv(data_dir+"Gasperini2019.at_scale.ABC.innerjoin.withdups.txt", sep='\t')
 remove_dups_not_sig = Gasperini_atscale_ABC.duplicated('ABC.id', keep='first') & ~Gasperini_atscale_ABC['Significant']
 Gasperini_atscale_ABC = Gasperini_atscale_ABC[~remove_dups_not_sig] # remove duplicates leaving first item except when significant
 Gasperini_atscale_ABC = Gasperini_atscale_ABC[~Gasperini_atscale_ABC.duplicated('ABC.id', keep='last')]  # now remove duplicates leaving last (significant)
-Gasperini_ABC_by_gene = Gasperini_atscale_ABC.groupby('GeneSymbol', as_index=False)
+grouped = Gasperini_atscale_ABC.groupby(['chr', 'start', 'end', 'TargetGene'], as_index=False)
+Gasperini_atscale_ABC_sum = grouped.agg(lambda x: x.sum() if x.name=='ABC.Score' else (x.any() if x.name=='Significant' else (x.max() if np.issubdtype(x.dtype,     np.number) else x.iloc[0])))
+Gasperini_atscale_ABC_sum['Significant'] = Gasperini_atscale_ABC_sum['Significant'].astype('bool')
+Gasperini_ABC_by_gene = Gasperini_atscale_ABC_sum.groupby('GeneSymbol', as_index=False)
 Gasperini_ABC_by_gene_sig = Gasperini_ABC_by_gene['Significant'].any()
 Gasperini_ABC_by_gene_sig= Gasperini_ABC_by_gene_sig.rename(columns={'Significant': 'atleast1Sig'})
-Gasperini_atscale_ABC = pd.merge(Gasperini_atscale_ABC, Gasperini_ABC_by_gene_sig, on=['GeneSymbol'], how='inner')
-Gasperini_atscale_ABC.to_csv(data_dir+"Gasperini2019.at_scale.ABC.txt", sep='\t')
+Gasperini_atscale_ABC_sum = pd.merge(Gasperini_atscale_ABC_sum, Gasperini_ABC_by_gene_sig, on=['GeneSymbol'], how='inner')
+Gasperini_atscale_ABC_sum.to_csv(data_dir+"Gasperini2019.at_scale.ABC.sum.innerjoin.txt", sep='\t')
+
 
 
 # K562 TF
-Gasperini_atscale_ABC = pd.read_csv(data_dir+"Gasperini2019.at_scale.ABC.txt", sep='\t')
+Gasperini_atscale_ABC = pd.read_csv(data_dir+"Gasperini2019.at_scale.ABC.sum.innerjoin.txt", sep='\t')
 enhancer_TF = pd.read_csv(data_dir+"Gasperini2019.enhancer.TF.overlap.bed", sep="\t", names=['chr', 'start', 'end', 'ID', 'chr.TF', 'start.TF', 'end.TF', 'TF', 'score', 'celltype', 'score2'], header=None)  
 enhancer_TF['count'] = 1
 enhancer_TF_pivot = enhancer_TF.pivot_table(index='ID', columns = 'TF', values='count', aggfunc=np.sum, fill_value=0)  

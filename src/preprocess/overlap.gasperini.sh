@@ -4,7 +4,7 @@ set -uex
 DATADIR=data/Gasperini
 #DATADIR=$DATADIR.newTFs
 CRISPRFILE=$DATADIR/Gasperini2019.at_scale_screen.cand_enhancer_x_exprsd_genes.200503.csv
-ABCOUTDIR=/scratch/han_lab/mhan/ABC-Enhancer-Gene-Prediction/Gasperini/
+ABCOUTDIR=/data8/han_lab/mhan/abic/data/Gasperini/ABC_output/
 TFFILE=data/ucsc/encRegTfbsClusteredWithK562.hg19.bed
 #TFFILE=/data8/han_lab/mhan/abic/data/encodeTF2/consolidatedEncodeTFBS.bed
 awk -F"," '{print $3"\t"$4"\t"$5"\t"$2}' $CRISPRFILE  | sed 's/"//g' | awk -F":" 'NR>1 {print $1}' | sort -k1,1 -k2,2n -k3,3n | uniq > $DATADIR/Gasperini2019.enhancer.bed
@@ -51,6 +51,12 @@ python src/preprocess/split_test_dr_fitnmf.py --dir $DATADIR/ --infile Gasperini
 
 # apply DR(NMF) to test
 python src/preprocess/applynmf.py --dir $DATADIR --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.beforeNMF.txt --NMFdir $DATADIR/
+
+# drop NA from pValueAdjusted
+python src/preprocess/dropna.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt
+python src/preprocess/dropna.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt
+
+
 
 
 # extract rows with genes that have at least 1 significant enhancer
