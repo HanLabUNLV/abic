@@ -23,13 +23,14 @@ if __name__ == '__main__':
 
   infile_base = os.path.splitext(args.infile)[0]
 
-  ABC_X = pd.read_csv(args.dir+'/'+args.infile,sep='\t', header=0)
-  ABC_dropna = ABC_X.dropna(subset=['pValueAdjusted'])
+  ABC_X = pd.read_csv(args.dir+'/'+args.infile,sep='\t', header=0, index_col=0)
+  #ABC_dropna = ABC_X.dropna(subset=['pValueAdjusted'])
+  ABC_dropna = ABC_X.loc[ABC_X['pValueAdjusted'] < 1,]
   ABC_dropna.to_csv(args.dir+'/'+infile_base+".dropna.txt",sep='\t')
   
   targetfile=args.dir+'/'+infile_base+".target.txt"
   if (os.path.isfile(targetfile)):
-    ABC_y = pd.read_csv(targetfile,sep='\t', header=0)
+    ABC_y = pd.read_csv(targetfile,sep='\t', header=0, index_col=0 )
     ABC_y.filter(items = ABC_dropna.index,axis=0).to_csv(args.dir+'/'+infile_base+".dropna.target.txt", sep='\t') 
 
 

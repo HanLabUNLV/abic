@@ -85,7 +85,7 @@ if __name__ == '__main__':
 
   # ABC
   data_dir = args.dir+'/'
-  Gasperini_atscale_ABC = pd.read_csv(data_dir+args.infile, sep='\t')
+  Gasperini_atscale_ABC = pd.read_csv(data_dir+args.infile, sep='\t', index_col=0)
   Gasperini_atscale_ABC = Gasperini_atscale_ABC.loc[:,~Gasperini_atscale_ABC.columns.str.match("Unnamed")]
 
   # split train and test before DR.
