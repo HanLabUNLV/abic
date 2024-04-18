@@ -81,22 +81,22 @@ class Objective:
       #"max_depth": trial.suggest_int("max_depth", 3, 4),
       "max_depth": 3,
       # minimum child weight, larger the term more conservative the tree.
-      "min_child_weight": trial.suggest_int("min_child_weight", 10, 20),
+      "min_child_weight": trial.suggest_int("min_child_weight", 14, 20),
       # learning rate
       #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
       "eta": 0.03,
       # sampling ratio for training features.
       #"subsample": 0.6,
-      "subsample": trial.suggest_float("subsample", 0.4, 0.9),
+      "subsample": trial.suggest_float("subsample", 0.3, 0.7),
       # sampling according to each tree.
       #"colsample_bytree": 0.7,
-      "colsample_bytree": trial.suggest_float("colsample_bytree", 0.45, 0.9),
+      "colsample_bytree": trial.suggest_float("colsample_bytree", 0.4, 0.8),
       # L2 regularization weight.
       "lambda": trial.suggest_float("lambda", 2, 3, log=True),
       # L1 regularization weight.
-      "alpha": trial.suggest_float("alpha", 1e-4, 0.2, log=True),
+      "alpha": trial.suggest_float("alpha", 1e-4, 0.1, log=True),
       # defines how selective algorithm is.
-      "gamma": trial.suggest_float("gamma", 10, 14),
+      "gamma": trial.suggest_float("gamma", 12, 17),
       #"grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
       "scale_pos_weight": self.cls_weight,
       "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
@@ -144,6 +144,7 @@ class Objective:
 
     param_gene = {
     }
+
     param_e1 = {
       "verbosity": 0,
       "random_state" : RANDOM_SEED,
@@ -183,6 +184,7 @@ class Objective:
       "max_delta_step" : 1,
     }
 
+
     param_e2 = {
       "verbosity": 0,
       "random_state" : RANDOM_SEED,
@@ -221,6 +223,8 @@ class Objective:
       "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
       "max_delta_step" : 1,
     }
+
+
     param_noTF = {
       "verbosity": 0,
       "random_state" : RANDOM_SEED,
@@ -228,7 +232,7 @@ class Objective:
       # use exact for small featuresset.
       "tree_method": "auto",
       # n_estimator
-      "num_boost_round": trial.suggest_int("num_boost_round", 10, 50),
+      "num_boost_round": trial.suggest_int("num_boost_round", 10, 150),
       # defines booster
       "booster": trial.suggest_categorical("booster", ["gbtree"]),
       #"booster": trial.suggest_categorical("booster", ["dart"]),
@@ -239,19 +243,19 @@ class Objective:
       "min_child_weight": trial.suggest_int("min_child_weight", 10, 20),
       # learning rate
       #"eta": trial.suggest_float("eta", 1e-8, 0.3, log=True),
-      "eta": 0.05,
+      "eta": 0.03,
       # sampling ratio for training features.
       #"subsample": 0.6,
-      "subsample": trial.suggest_float("subsample", 0.4, 0.9),
+      "subsample": trial.suggest_float("subsample", 0.4, 0.8),
       # sampling according to each tree.
       #"colsample_bytree": 0.7,
-      "colsample_bytree": trial.suggest_float("colsample_bytree", 0.45, 0.9),
+      "colsample_bytree": trial.suggest_float("colsample_bytree", 0.45, 0.8),
       # L2 regularization weight.
-      "lambda": trial.suggest_float("lambda", 2, 10, log=True),
+      "lambda": trial.suggest_float("lambda", 2, 3, log=True),
       # L1 regularization weight.
-      "alpha": trial.suggest_float("alpha", 0.1, 1, log=True),
+      "alpha": trial.suggest_float("alpha", 1e-4, 0.1, log=True),
       # defines how selective algorithm is.
-      "gamma": trial.suggest_float("gamma", 10, 25),
+      "gamma": trial.suggest_float("gamma", 10, 17),
       #"grow_policy": trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"]),
       "scale_pos_weight": self.cls_weight,
       "eval_metric" : 'map',        #map: mean average precision aucpr: auc for precision recall
@@ -259,6 +263,9 @@ class Objective:
     }
 
 
+    print("self.params:{}".format(self.params))
+    print("param_all num_boost_round:{}".format(param_all['num_boost_round']))
+    #print("param_e2 num_boost_round:{}".format(param_e2['num_boost_round']))
 
     if self.params == "xgb.all":
       param = param_all 
@@ -282,6 +289,8 @@ class Objective:
       param["rate_drop"] = trial.suggest_float("rate_drop", 1e-8, 0.5, log=True)
       param["skip_drop"] = trial.suggest_float("skip_drop", 0.5, 1, log=True)
 
+    print("suggested num_boost_round:{}".format(param['num_boost_round']))
+
     # set up cross-validation
     idx = 0
     cv_scores = np.empty(len(self.custom_fold))
@@ -299,6 +308,7 @@ class Objective:
         # xgb train with evals
         evals_result = {}
         pruning_callback = optuna.integration.XGBoostPruningCallback(trial, "validation-map")
+        print("used num_boost_round:{}".format(param['num_boost_round']))
         if idx == 0:
             xgb_clf_cv = xgb.train(params=param, dtrain=dtrain, 
                               num_boost_round=param['num_boost_round'],
@@ -534,7 +544,7 @@ class OuterFolds:
           #max_depth=params['max_depth'],
           min_child_weight=params['min_child_weight'],
           scale_pos_weight=params['scale_pos_weight'], 
-          n_estimators=params['num_boost_round']
+          n_estimators=trial.user_attrs['best_iteration']
         )
         print(xgb_clf_tuned_2)
         # feature selection after a round of hyperparam optimization
@@ -572,8 +582,9 @@ class OuterFolds:
         features_to_drop = np.setdiff1d(featurenames, features_to_keep)
         #features_to_drop = np.append(features_to_drop, ['ABC.Score.Numerator', "ABC.Score.mean"])
         print(features_to_drop)
-        np.savetxt(self.outdir+'/'+new_study_name_prefix+'.features_dropped.txt', np.transpose([features_to_keep]), fmt="%s")
+        np.savetxt(self.outdir+'/'+new_study_name_prefix+'.features_kept.txt', np.transpose([features_to_keep]), fmt="%s")
 
+        os.symlink(os.path.abspath(self.outdir +'/'+self.study_name_prefix+'.learninginput.txt'), self.outdir +'/'+new_study_name_prefix+'.learninginput.txt')
         for outer_index in range(self.nfold):
             src_path = self.outdir +'/'+self.study_name_prefix+'.Xsplit.'+str(outer_index)+'.txt'
             #X_split = pd.read_csv(src_path, sep='\t', index_col=0).reset_index(drop=True)
@@ -725,7 +736,7 @@ class OuterFolds:
 # python -i src/mira_cross_val_bayescv.eroles.xgb.optuna.py --dir /data8/han_lab/mhan/abcd/data/ --outdir /data8/han_lab/mhan/abcd/run.groupcv --port 44803 --model 'rf' --outerfold 2
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
-  parser.add_argument('--dir', required=True, help="directory containing edgelist and vertices files")
+  parser.add_argument('--dir', required=False, help="directory containing edgelist and vertices files")
   parser.add_argument('--infile', required=False, help="infile name")
   parser.add_argument('--outdir', default='.', help="directory containing edgelist and vertices files")
   parser.add_argument('--chr', default='all', help="chromosome")
@@ -792,6 +803,9 @@ if __name__ == "__main__":
 
       if infile is None:
         print( "--infile is required to run the --init process")
+        quit()
+      if base_directory is None:
+        print( "--base_directory is required to run the --init process")
         quit()
       data2 = pd.read_csv(base_directory+'/'+infile,sep='\t', header=0, index_col=0)
       data2 = data2.loc[:,~data2.columns.str.match("Unnamed")]

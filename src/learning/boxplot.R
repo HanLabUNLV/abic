@@ -12,6 +12,7 @@ plotbox <- function(dataname, outdir) {
   test$confusion = as.factor(paste(test$Significant, test$y_pred, sep=""))
   test <- test %>% mutate(enhancer_cnt = cut(Enhancer.count.near.TSS, breaks=c(0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000)), .drop = FALSE)
   test <- test %>% mutate(TSS_cnt = cut(TSS.count.near.enhancer, breaks=c(0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220)), .drop = FALSE)
+  test <- test %>% mutate(nearby_cnt = cut(nearby.counts, breaks=c(0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000)), .drop = FALSE)
 
   testcnt <- test %>% count(TSS_cnt, confusion, .drop = FALSE) 
   pdf(paste0(outdir,"/ABC.confusion_by_cnt.boxplot.pdf"))
@@ -95,20 +96,20 @@ plotbox <- function(dataname, outdir) {
   test$strongcontact = ifelse(test$hic_contact >= 0.005, "strong", "weak")
   test$siglabel = ifelse(test$Significant=="1", "pos", "neg")
   test$case = paste(test$strongcontact, test$siglabel)
-  testcnt <- test %>% count(TSS_cnt, case, .drop = FALSE) 
-  p<-ggplot(testcnt, aes(x=TSS_cnt, y=n, fill=case)) +
+  testcnt <- test %>% count(nearby_cnt, case, .drop = FALSE) 
+  p<-ggplot(testcnt, aes(x=nearby_cnt, y=n, fill=case)) +
     geom_bar(stat="identity", color="black", position=position_dodge()) +
-    scale_x_discrete(labels=c(10, 30, 50, 70, 90, 110, 130, 150, 170, 190, 210)) +
+    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
     theme_minimal(base_size = 14)
   print(p)
   testcnt <- testcnt[testcnt$case != "weak neg",]
-  p<-ggplot(testcnt, aes(x=TSS_cnt, y=n, fill=case)) +
+  p<-ggplot(testcnt, aes(x=nearby_cnt, y=n, fill=case)) +
     geom_bar(stat="identity", color="black", position=position_dodge())+
-    scale_x_discrete(labels=c(10, 30, 50, 70, 90, 110, 130, 150, 170, 190, 210)) +
+    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
     theme_minimal(base_size = 14)
   print(p)
-  p<-ggplot(testcnt, aes(x=TSS_cnt, y=n, fill=case)) +
-    scale_x_discrete(labels=c(10, 30, 50, 70, 90, 110, 130, 150, 170, 190, 210)) +
+  p<-ggplot(testcnt, aes(x=nearby_cnt, y=n, fill=case)) +
+    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
     geom_col(position = "fill")+
     theme_minimal(base_size = 14)
   print(p)
@@ -168,12 +169,12 @@ plotbox <- function(dataname, outdir) {
     scale_x_discrete(labels=c(10, 30, 50, 70, 90, 110, 130, 150, 170, 190, 210)) +
     theme_minimal(base_size = 14)
   print(p)
-  p <- ggplot(test, aes(x=nearby.counts, y=mean.contact.to.TSS)) + geom_point() + geom_smooth() +
-    theme_minimal(base_size = 14)
-  print(p)
-  p <- ggplot(test, aes(x=nearby.counts, y=mean.contact.from.enhancer)) + geom_point() + geom_smooth() +
-    theme_minimal(base_size = 14)
-  print(p)
+  #p <- ggplot(test, aes(x=nearby.counts, y=mean.contact.to.TSS)) + geom_point() + geom_smooth() +
+  #  theme_minimal(base_size = 14)
+  #print(p)
+  #p <- ggplot(test, aes(x=nearby.counts, y=mean.contact.from.enhancer)) + geom_point() + geom_smooth() +
+  #  theme_minimal(base_size = 14)
+  #print(p)
   dev.off()
 
   pdf(paste0(outdir,"/remaining_vs_count.pdf"))
