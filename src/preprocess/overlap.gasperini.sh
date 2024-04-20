@@ -4,7 +4,7 @@ set -uex
 DATADIR=data/Gasperini
 #DATADIR=$DATADIR.newTFs
 CRISPRFILE=$DATADIR/Gasperini2019.at_scale_screen.cand_enhancer_x_exprsd_genes.200503.csv
-ABCOUTDIR=/data8/han_lab/mhan/abic/data/Gasperini/ABC_output/
+ABCOUTDIR=/data8/han_lab/mhan/abic/data/Gasperini/ABC_output/       # need to specify absolute path to make link work below.
 TFFILE=data/ucsc/encRegTfbsClusteredWithK562.hg19.bed
 #TFFILE=/data8/han_lab/mhan/abic/data/encodeTF2/consolidatedEncodeTFBS.bed
 awk -F"," '{print $3"\t"$4"\t"$5"\t"$2}' $CRISPRFILE  | sed 's/"//g' | awk -F":" 'NR>1 {print $1}' | sort -k1,1 -k2,2n -k3,3n | uniq > $DATADIR/Gasperini2019.enhancer.bed
@@ -34,6 +34,9 @@ ln -s $ABCOUTDIR/Neighborhoods.H3K4me3/GeneList.txt ${DATADIR}/GeneList.H3K4me3.
 
 ln -s $ABCOUTDIR/Neighborhoods.H3K27me3/EnhancerList.txt ${DATADIR}/EnhancerList.H3K27me3.txt 
 ln -s $ABCOUTDIR/Neighborhoods.H3K27me3/GeneList.txt ${DATADIR}/GeneList.H3K27me3.txt 
+
+ln -s $ABCOUTDIR/Neighborhoods.H3K4me1/EnhancerList.txt ${DATADIR}/EnhancerList.H3K4me1.txt 
+ln -s $ABCOUTDIR/Neighborhoods.H3K4me1/GeneList.txt ${DATADIR}/GeneList.H3K4me1.txt 
 
 
 
