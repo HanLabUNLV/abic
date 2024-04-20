@@ -225,7 +225,7 @@ class Objective:
     }
 
 
-    param_noTF = {
+    param_reduced = {
       "verbosity": 0,
       "random_state" : RANDOM_SEED,
       "objective": "binary:logistic",
@@ -264,8 +264,6 @@ class Objective:
 
 
     print("self.params:{}".format(self.params))
-    print("param_all num_boost_round:{}".format(param_all['num_boost_round']))
-    #print("param_e2 num_boost_round:{}".format(param_e2['num_boost_round']))
 
     if self.params == "xgb.all":
       param = param_all 
@@ -277,8 +275,8 @@ class Objective:
       param = param_e1
     elif self.params == "xgb.e2":
       param = param_e2
-    elif self.params == "xgb.noTF":
-      param = param_noTF
+    elif self.params == "xgb.reduced":
+      param = param_reduced
     else:
       print("model params not defined")
       quit() 
@@ -743,6 +741,7 @@ if __name__ == "__main__":
   parser.add_argument("--port", required=True, help="postgres port for storage")
   parser.add_argument("--studyname", required=True, help="study name prefix")
   parser.add_argument("--init", action='store_true', help="create outer folds") # if on, create outer folds and optuna studies 
+  parser.add_argument("--init_reduced", action='store_true', help="create outer folds") # if on, create outer folds and optuna studies for a reduced model without TF features 
   parser.add_argument("--init2pass", action='store_true', help="create outer folds") # if on, create optuna studies for 2nd pass hyperparam optimization after feature selection 
   parser.add_argument("--opt", action='store_true', help="parallel optimize") # if on, add parallel optimizers 
   parser.add_argument("--fs", action='store_true', help="featureselection") # if on, feature selection 
@@ -766,6 +765,7 @@ if __name__ == "__main__":
   postgres_port = args.port
   study_name_prefix = args.studyname
   run_init = args.init
+  run_init_reduced = args.init_reduced
   run_init2pass = args.init2pass
   run_optimize = args.opt
   run_feature_selection = args.fs
@@ -796,7 +796,7 @@ if __name__ == "__main__":
   outer_split = StratifiedGroupKFold(n_splits=nfold, shuffle=False, random_state=None)
   storage = optuna.storages.RDBStorage(url="postgresql://mhan@localhost:"+str(postgres_port)+"/example")
   outerFolds = OuterFolds(outer_split, nfold, storage, study_name_prefix, outdir, '')
-  if (run_init == True):
+  if (run_init == True | run_init_reduced == True):
       #################################
       #import our data, then format it #
       ##################################
@@ -825,36 +825,34 @@ if __name__ == "__main__":
       ActivityFeatures.rename(columns={'normalized_h3K27ac':'normalized_h3K27ac_e', 'normalized_h3K4me3':'normalized_h3K4me3_e', 'normalized_h3K27me3':'normalized_h3K27me3_e','H3K27ac.RPKM.quantile.TSS1Kb':'H3K27ac.RPKM.quantile_TSS', 'H3K4me3.RPKM.quantile.TSS1Kb':'H3K4me3.RPKM.quantile_TSS', 'H3K27me3.RPKM.quantile.TSS1Kb':'H3K27me3.RPKM.quantile_TSS'}, inplace=True)
       ActivityFeatures = ActivityFeatures.dropna()
       ActivityFeatures['TargetGeneExpression'] = np.log1p(ActivityFeatures['TargetGeneExpression'])
-      #hicfeatures = features_gasperini[['hic_contact', 'Enhancer.count.near.TSS', 'mean.contact.to.TSS', 'zscore.contact.to.TSS', 'diff.from.max.contact.to.TSS', 'total.contact.to.TSS', 'remaining.enhancers.contact.to.TSS', 'TSS.count.near.enhancer', 'mean.contact.from.enhancer', 'zscore.contact.from.enhancer', 'diff.from.max.contact.from.enhancer', 'total.contact.from.enhancer', 'remaining.TSS.contact.from.enhancer', 'nearby.counts', 'mean.contact', 'zscore.contact', 'diff.from.max.contact', 'total.contact']].copy()
       hicfeatures = features_gasperini[['hic_contact', 'Enhancer.count.near.TSS', 'zscore.contact.to.TSS', 'diff.from.max.contact.to.TSS', 'remaining.enhancers.contact.to.TSS', 'TSS.count.near.enhancer', 'zscore.contact.from.enhancer', 'diff.from.max.contact.from.enhancer', 'remaining.TSS.contact.from.enhancer' ]].copy()
-      #hicfeatures = features_gasperini[['hic_contact', 'hic_contact_pl_scaled_adj', 'ABC.Score.Numerator.sum', 'ABC.Score.otherenhancers']].copy()
       hicfeatures = hicfeatures.dropna()
-      TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)|(NMF)').copy()
-      TFfeatures = TFfeatures.dropna()
+      if not run_init_reduced:
+        TFfeatures = features_gasperini.filter(regex='(_e)|(_TSS)|(NMF)').copy()
+        TFfeatures = TFfeatures.dropna()
       crisprfeatures = features_gasperini[['EffectSize', 'Significant', 'pValue' ]].copy()
       crisprfeatures = crisprfeatures.dropna()
       groupfeatures = features_gasperini[['group']].copy()
 
       features = ActivityFeatures.copy()
       features = pd.merge(features, hicfeatures, left_index=True, right_index=True)
-      features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
+      if not run_init_reduced:
+        features = pd.merge(features, TFfeatures, left_index=True, right_index=True)
       features = pd.merge(features, crisprfeatures, left_index=True, right_index=True)
       data = pd.merge(features, groupfeatures, left_index=True, right_index=True)
       ActivityFeatures = data.iloc[:, :ActivityFeatures.shape[1]]
       hicfeatures = data.iloc[:, ActivityFeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]]
-      TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
-      #crisprfeatures = data.iloc[:, -3:]
+      if not run_init_reduced:
+        TFfeatures = data.iloc[:, ActivityFeatures.shape[1]+hicfeatures.shape[1]:ActivityFeatures.shape[1]+hicfeatures.shape[1]+TFfeatures.shape[1]]
       crisprfeatures = data[['EffectSize', 'Significant', 'pValue' ]]
       groupfeatures = data[['group']]
       f1 = set(list(features.columns))
-      #features = data.iloc[:, :data.shape[1]-3]
       features = data.iloc[:, :data.shape[1]-crisprfeatures.shape[1]-groupfeatures.shape[1]]
       f2 = set(list(features.columns))
       target = crisprfeatures['Significant'].astype(int)
       groups = groupfeatures
 
 
-      #features.drop(columns=['ABC.Score'], axis=1, inplace=True)
       featurelabels = pd.DataFrame({"features":features.columns})
       featurelabels.to_csv(outdir+'/'+study_name_prefix+'.featurelabels.txt', index=False, sep='\t')
       features_gasperini.filter(items = data.index,axis=0).to_csv(outdir+'/'+study_name_prefix+'.learninginput.txt', sep='\t')
