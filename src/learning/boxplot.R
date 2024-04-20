@@ -1,6 +1,13 @@
 library(dplyr)
 library(ggplot2)
 
+ggplotColours <- function(n = 6, h = c(0, 360) + 15){
+  if ((diff(h) %% 360) < 1) h[2] <- h[2] - 360/n
+  hcl(h = (seq(h[1], h[2], length = n)), c = 100, l = 65)
+}
+col4 = ggplotColours(n = 4)
+col3 = c('grey', col4[1:3])
+
 theme_set(theme_minimal(base_size = 14))
 
 
@@ -12,10 +19,10 @@ plotbox <- function(dataname, outdir) {
   test$confusion = as.factor(paste(test$Significant, test$y_pred, sep=""))
   test <- test %>% mutate(enhancer_cnt = cut(Enhancer.count.near.TSS, breaks=c(0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000)), .drop = FALSE)
   test <- test %>% mutate(TSS_cnt = cut(TSS.count.near.enhancer, breaks=c(0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220)), .drop = FALSE)
-  test <- test %>% mutate(nearby_cnt = cut(nearby.counts, breaks=c(0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000)), .drop = FALSE)
+  test <- test %>% mutate(cnt = cut(nearby.counts, breaks=c(0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000)), .drop = FALSE)
 
   testcnt <- test %>% count(TSS_cnt, confusion, .drop = FALSE) 
-  pdf(paste0(outdir,"/ABC.confusion_by_cnt.boxplot.pdf"))
+  pdf(paste0(outdir,"/ABC.confusion_by_TSS_cnt.boxplot.pdf"))
   p<-ggplot(testcnt, aes(x=TSS_cnt, y=n, fill=confusion)) +
     geom_bar(stat="identity", color="black", position=position_dodge()) +
     scale_x_discrete(labels=c(10, 30, 50, 70, 90, 110, 130, 150, 170, 190, 210)) +
@@ -36,15 +43,46 @@ plotbox <- function(dataname, outdir) {
   print(p)
   dev.off()
 
+  testcnt <- test %>% count(cnt, confusion, .drop = FALSE) 
+  pdf(paste0(outdir,"/ABC.confusion_by_cnt.boxplot.pdf"))
+  p<-ggplot(testcnt, aes(x=cnt, y=n, fill=confusion)) +
+    geom_bar(stat="identity", color="black", position=position_dodge()) +
+    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
+    ylim(0, 6000) +
+    theme_minimal(base_size = 14)
+  print(p)
+  testcnt <- testcnt[testcnt$confusion != "00",]
+  p<-ggplot(testcnt, aes(x=cnt, y=n, fill=confusion)) +
+    geom_bar(stat="identity", color="black", position=position_dodge())+
+    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
+    ylim(0, 1500) +
+    theme_minimal(base_size = 14)
+  print(p)
+  p<-ggplot(testcnt, aes(x=cnt, y=n, fill=confusion)) +
+    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
+    geom_col(position = "fill")+
+    theme_minimal(base_size = 14)
+  print(p)
+  dev.off()
+
+
   pdf(paste0(outdir,"/ABC.hic_confusion_by_cnt.boxplot.pdf"))
   p <- ggplot(test, aes(x=enhancer_cnt, y=hic_contact, fill=confusion) ) + 
     geom_boxplot(position = position_dodge2(preserve = "single")) +
     scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
+    scale_fill_manual(values = col3) +
     theme_minimal(base_size = 14)
   print(p)
   p <- ggplot(test, aes(x=TSS_cnt, y=hic_contact, fill=confusion) ) + 
     geom_boxplot(position = position_dodge2(preserve = "single")) +
     scale_x_discrete(labels=c(10, 30, 50, 70, 90, 110, 130, 150, 170, 190, 210)) +
+    scale_fill_manual(values = col3) +
+    theme_minimal(base_size = 14)
+  print(p)
+  p <- ggplot(test, aes(x=cnt, y=hic_contact, fill=confusion) ) + 
+    geom_boxplot(position = position_dodge2(preserve = "single")) +
+    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
+    scale_fill_manual(values = col3) +
     theme_minimal(base_size = 14)
   print(p)
   dev.off()
@@ -93,22 +131,28 @@ plotbox <- function(dataname, outdir) {
     scale_x_discrete(labels=c(10, 30, 50, 70, 90, 110, 130, 150, 170, 190, 210)) +
     theme_minimal(base_size = 14)
   print(p)
+  p <- ggplot(test, aes(x=cnt, y=hic_contact, fill=Significant) ) + 
+    geom_boxplot(position = position_dodge2(preserve = "single")) +
+    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
+    theme_minimal(base_size = 14)
+  print(p)
+ 
   test$strongcontact = ifelse(test$hic_contact >= 0.005, "strong", "weak")
   test$siglabel = ifelse(test$Significant=="1", "pos", "neg")
   test$case = paste(test$strongcontact, test$siglabel)
-  testcnt <- test %>% count(nearby_cnt, case, .drop = FALSE) 
-  p<-ggplot(testcnt, aes(x=nearby_cnt, y=n, fill=case)) +
+  testcnt <- test %>% count(cnt, case, .drop = FALSE) 
+  p<-ggplot(testcnt, aes(x=cnt, y=n, fill=case)) +
     geom_bar(stat="identity", color="black", position=position_dodge()) +
     scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
     theme_minimal(base_size = 14)
   print(p)
   testcnt <- testcnt[testcnt$case != "weak neg",]
-  p<-ggplot(testcnt, aes(x=nearby_cnt, y=n, fill=case)) +
+  p<-ggplot(testcnt, aes(x=cnt, y=n, fill=case)) +
     geom_bar(stat="identity", color="black", position=position_dodge())+
     scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
     theme_minimal(base_size = 14)
   print(p)
-  p<-ggplot(testcnt, aes(x=nearby_cnt, y=n, fill=case)) +
+  p<-ggplot(testcnt, aes(x=cnt, y=n, fill=case)) +
     scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
     geom_col(position = "fill")+
     theme_minimal(base_size = 14)
@@ -169,6 +213,12 @@ plotbox <- function(dataname, outdir) {
     scale_x_discrete(labels=c(10, 30, 50, 70, 90, 110, 130, 150, 170, 190, 210)) +
     theme_minimal(base_size = 14)
   print(p)
+  p <- ggplot(test, aes(x=cnt, y=hic_contact) ) + 
+    geom_boxplot(position = position_dodge2(preserve = "single")) + ylim(0, 0.003) + stat_summary(fun.y="mean", ,color="red") +
+    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
+    theme_minimal(base_size = 14)
+  print(p)
+ 
   #p <- ggplot(test, aes(x=nearby.counts, y=mean.contact.to.TSS)) + geom_point() + geom_smooth() +
   #  theme_minimal(base_size = 14)
   #print(p)
@@ -205,25 +255,28 @@ plotbox <- function(dataname, outdir) {
   test$confusion = as.factor(paste(test$Significant, test$y_pred, sep=""))
   test <- test %>% mutate(enhancer_cnt = cut(Enhancer.count.near.TSS, breaks=c(0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000)), .drop = FALSE)
   test <- test %>% mutate(TSS_cnt = cut(TSS.count.near.enhancer, breaks=c(0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220)), .drop = FALSE)
+  test <- test %>% mutate(cnt = cut(nearby.counts, breaks=c(0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000)), .drop = FALSE)
 
-  testcnt <- test %>% count(TSS_cnt, confusion, .drop = FALSE)
+
+
+  testcnt <- test %>% count(cnt, confusion, .drop = FALSE) 
   pdf(paste0(outdir,"/XGB.confusion_by_cnt.boxplot.pdf"))
-  p<-ggplot(testcnt, aes(x=TSS_cnt, y=n, fill=confusion)) +
-    geom_bar(stat="identity", color="black", position=position_dodge())+
-    scale_x_discrete(labels=c(10, 30, 50, 70, 90, 110, 130, 150, 170, 190, 210)) +
-    ylim(0, 12000) +
+  p<-ggplot(testcnt, aes(x=cnt, y=n, fill=confusion)) +
+    geom_bar(stat="identity", color="black", position=position_dodge()) +
+    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
+    ylim(0, 6000) +
     theme_minimal(base_size = 14)
   print(p)
   testcnt <- testcnt[testcnt$confusion != "00",]
-  p<-ggplot(testcnt, aes(x=TSS_cnt, y=n, fill=confusion)) +
+  p<-ggplot(testcnt, aes(x=cnt, y=n, fill=confusion)) +
     geom_bar(stat="identity", color="black", position=position_dodge())+
-    scale_x_discrete(labels=c(10, 30, 50, 70, 90, 110, 130, 150, 170, 190, 210)) +
-    ylim(0, 2500) +
+    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
+    ylim(0, 1500) +
     theme_minimal(base_size = 14)
   print(p)
-  p<-ggplot(testcnt, aes(x=TSS_cnt, y=n, fill=confusion)) +
-    geom_col(position = "fill") +
-    scale_x_discrete(labels=c(10, 30, 50, 70, 90, 110, 130, 150, 170, 190, 210)) +
+  p<-ggplot(testcnt, aes(x=cnt, y=n, fill=confusion)) +
+    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
+    geom_col(position = "fill")+
     theme_minimal(base_size = 14)
   print(p)
   dev.off()
@@ -232,15 +285,28 @@ plotbox <- function(dataname, outdir) {
   pdf(paste0(outdir,"/XGB.hic_confusion_by_cnt.boxplot.pdf"))
   p <- ggplot(test, aes(x=enhancer_cnt, y=hic_contact, fill=confusion) ) + 
     geom_boxplot(position = position_dodge2(preserve = "single")) +
-    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900))  +
+    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
+    scale_fill_manual(values = col3) +
     theme_minimal(base_size = 14)
   print(p)
   p <- ggplot(test, aes(x=TSS_cnt, y=hic_contact, fill=confusion) ) + 
     geom_boxplot(position = position_dodge2(preserve = "single")) +
     scale_x_discrete(labels=c(10, 30, 50, 70, 90, 110, 130, 150, 170, 190, 210)) +
+    scale_fill_manual(values = col3) +
+    theme_minimal(base_size = 14)
+  print(p)
+  p <- ggplot(test, aes(x=cnt, y=hic_contact, fill=confusion) ) + 
+    geom_boxplot(position = position_dodge2(preserve = "single")) +
+    scale_x_discrete(labels=c(100, 300, 500, 700, 900, 1100, 1300, 1500, 1700, 1900)) +
+    scale_fill_manual(values = col3) +
     theme_minimal(base_size = 14)
   print(p)
   dev.off()
+
+
+
+
+
 
 
 }
