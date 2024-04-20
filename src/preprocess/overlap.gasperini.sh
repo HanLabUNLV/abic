@@ -63,8 +63,8 @@ python src/preprocess/dropna.py --dir $DATADIR/ --infile Gasperini2019.at_scale.
 
 
 # extract rows with genes that have at least 1 significant enhancer
-python src/preprocess/atleast1sig.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt
-python src/preprocess/atleast1sig.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt
+python src/preprocess/atleast1sig.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.dropna.txt
+python src/preprocess/atleast1sig.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.dropna.txt
 
 # extract rows with genes that have greater than 2.5 TargetGeneExpression
 python src/preprocess/hiexp.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt
