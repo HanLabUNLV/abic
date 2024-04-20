@@ -28,9 +28,9 @@ def ABC_predict(inputfile, threshold=0.022, inputindex=None):
       ABC_index = pd.read_csv(inputindex, sep="\t", index_col=0).index
       ABC_pd = ABC_pd.filter(items=ABC_index, axis=0)
 
-    ABC_score = ABC_pd['ABC.Score'] 
-    distance = 1/np.log(ABC_pd['distance'])
-    y = ABC_pd['Significant'].astype(int)
+    ABC_score = ABC_pd['ABC.Score'].reset_index(drop=True)
+    distance =  1/np.log((ABC_pd['distance'])+1.1).reset_index(drop=True)
+    y = ABC_pd['Significant'].astype(int).reset_index(drop=True)
     ABC_test = pd.concat([y, distance, ABC_score], axis=1)
 
     ABC_test['y_pred'] = ABC_test['ABC.Score'] > threshold
