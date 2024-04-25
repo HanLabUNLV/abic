@@ -4,6 +4,7 @@ set -uex
 DATADIR=data/Gasperini
 #DATADIR=$DATADIR.newTFs
 #CRISPRFILE=$DATADIR/Gasperini2019.at_scale_screen.cand_enhancer_x_exprsd_genes.200503.csv
+#CRISPRFILE=$DATADIR/GSE120861_all_deg_results.at_scale.dropNA.mapID.txt 
 CRISPRFILE=$DATADIR/GSE120861_all_deg_results.at_scale.dropNA.dropTSS.mapID.txt 
 ABCOUTDIR=/data8/han_lab/mhan/ABC-Enhancer-Gene-Prediction.bak/Gasperini/ABC_output/
 TFFILE=data/ucsc/encRegTfbsClusteredWithK562.hg19.bed
@@ -41,49 +42,20 @@ ln -s $ABCOUTDIR/Neighborhoods.H3K27me3/GeneList.txt ${DATADIR}/GeneList.H3K27me
 
 
 # find overlap with ABC, TF
-python src/preprocess/overlap.gasperini.py
+python src/preprocess/overlap.gasperini.GSE.py
 
 # calculate indirect ABC scores
 #python src/network/calculate_abic.py  --netdir data/epgraph.Gasperini.K562/ --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.txt  
 
 # group by chromosomal position for groupCV
-python src/preprocess/groupbypos.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.txt 
+#python src/preprocess/groupbypos.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.txt 
 
-# split train-test and fit DR (NMF) to train
-python src/preprocess/split_test_dr_fitnmf.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.txt
 
 # apply DR(NMF) to test
-python src/preprocess/applynmf.py --dir $DATADIR --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.beforeNMF.txt --NMFdir $DATADIR/
+python src/preprocess/applynmf.py --dir $DATADIR --infile Gasperini2019.at_scale.ABC.TF.txt --NMFdir data/Gasperini.fixed/
 
 
 # extract rows with genes that have at least 1 significant enhancer
-python src/preprocess/atleast1sig.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt
-python src/preprocess/atleast1sig.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt
+python src/preprocess/atleast1sig.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.test.txt
 
-# extract rows with genes that have greater than 2.5 TargetGeneExpression
-python src/preprocess/hiexp.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt
-python src/preprocess/hiexp.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt
-
-
-# split data by complexity 
-python src/preprocess/complexity.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.train.txt 
-python src/preprocess/complexity.py --dir $DATADIR/ --infile Gasperini2019.at_scale.ABC.TF.erole.grouped.test.txt --target Gasperini2019.at_scale.ABC.TF.erole.grouped.test.target.txt 
-
-
-
-# generate train and test for gene prediction
-# group by chromosomal position
-python src/preprocess/groupbypos.py --dir $DATADIR/ --infile Gasperini2019.bygene.ABC.TF.txt
-# split train-test and fit DR (NMF) to train bygene data
-python src/preprocess/split_test_dr_fitnmf.py --dir $DATADIR/ --infile Gasperini2019.bygene.ABC.TF.grouped.txt 
-# apply DR(NMF) to test
-python src/preprocess/applynmf.py  --dir $DATADIR/ --infile Gasperini2019.bygene.ABC.TF.grouped.beforeNMF.txt --NMFdir $DATADIR/ 
-
-# generate train and test for enhancer prediction
-# group by chromosomal position
-python src/preprocess/groupbypos.py --dir $DATADIR/ --infile Gasperini2019.byenhancer.ABC.TF.txt
-# split train-test and fit DR (NMF) to train byenhancer data
-python src/preprocess/split_test_dr_fitnmf.py --dir $DATADIR/ --infile Gasperini2019.byenhancer.ABC.TF.grouped.txt 
-# apply DR(NMF) to test
-python src/preprocess/applynmf.py  --dir $DATADIR/ --infile Gasperini2019.byenhancer.ABC.TF.grouped.beforeNMF.txt --NMFdir $DATADIR/ 
 
