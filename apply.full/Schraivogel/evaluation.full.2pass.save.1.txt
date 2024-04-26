@@ -1,0 +1,2 @@
+	aucpr	average_precision	bal_accuracy	f1_score	best_iteration
+0	0.4921118822165079	0.49653933689260604	0.8085842917675545	0.5	184
