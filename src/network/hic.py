@@ -136,10 +136,19 @@ def apply_kr_threshold(hic_mat, hic_norm_file, kr_cutoff):
     #Convert all entries in the hic matrix corresponding to low kr norm entries to NaN
     #Note that in scipy sparse matrix multiplication 0*nan = 0
     #So this doesn't convert 0's to nan only nonzero to nan
-
+    
     norms = np.loadtxt(hic_norm_file)
-    norms[norms < kr_cutoff] = np.nan
-    norms[norms >= kr_cutoff] = 1
+
+    #NANs are fine, but break the code, fixed it
+    for i in range(0,len(norms)):
+        if norms[i]!=norms[i]:
+            pass
+        elif norms[i] < kr_cutoff:
+            norms[i]=np.nan
+        else:
+            norms[i] = 1
+    #norms[norms < kr_cutoff] = np.nan
+    #norms[norms >= kr_cutoff] = 1
     norm_mat = ssp.dia_matrix(( 1.0/norms, [0]), (len(norms), len(norms)))
 
     return norm_mat * hic_mat * norm_mat

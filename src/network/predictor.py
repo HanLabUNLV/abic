@@ -471,7 +471,7 @@ def validated_network_around_gene(enhancers, gene, valid_loops):
         print([v for v in network.vs])
         exit('network has less than 2 vertices')
     add_attr_network(network, enhancers, gene)
-    hic_dir = 'raw_data/hic/5kb_resolution_intrachromosomal/'
+    hic_dir = 'data/raw_data/hic/5kb_resolution_intrachromosomal/'
     hic_resolution = 5000
     hic_type = 'juicebox'
     tss_hic_contribution = 100
@@ -480,8 +480,8 @@ def validated_network_around_gene(enhancers, gene, valid_loops):
     args = {'hic_dir':hic_dir,'hic_resolution':hic_resolution,'hic_type':hic_type,'tss_hic_contribution':tss_hic_contribution,'window':window,'hic_gamma':hic_gamma}
     chromosome = enhancers.chr.tolist()[0]
     #hic_file, hic_norm_file, hic_is_vc = get_hic_file(chromosome, args['hic_dir'], hic_type = args['hic_type']) 
-    hic_file = 'raw_data/hic/5kb_resolution_intrachromosomal/'+chromosome+'/'+chromosome+'_5kb.RAWobserved'
-    hic_norm_file = 'raw_data/hic/5kb_resolution_intrachromosomal/'+chromosome+'/'+chromosome+'_5kb.KRnorm'
+    hic_file = 'data/raw_data/hic/5kb_resolution_intrachromosomal/'+chromosome+'/'+chromosome+'_5kb.RAWobserved'
+    hic_norm_file = 'data/raw_data/hic/5kb_resolution_intrachromosomal/'+chromosome+'/'+chromosome+'_5kb.KRnorm'
     hic_is_vc = True
     hic_threshold = 0.#2.788652e-03 * 0.01 #75% of contacts
     #load HIC matrix
@@ -572,7 +572,7 @@ def network_around_gene(enhancers, gene):
         print([v for v in network.vs])
         exit('network has less than 2 vertices')
     add_attr_network(network, enhancers, gene)
-    hic_dir = 'raw_data/hic/5kb_resolution_intrachromosomal/'
+    hic_dir = 'data/raw_data/hic/5kb_resolution_intrachromosomal/'
     hic_resolution = 5000
     hic_type = 'juicebox'
     tss_hic_contribution = 100
@@ -581,10 +581,10 @@ def network_around_gene(enhancers, gene):
     args = {'hic_dir':hic_dir,'hic_resolution':hic_resolution,'hic_type':hic_type,'tss_hic_contribution':tss_hic_contribution,'window':window,'hic_gamma':hic_gamma}
     chromosome = enhancers.chr.tolist()[0]
     #hic_file, hic_norm_file, hic_is_vc = get_hic_file(chromosome, args['hic_dir'], hic_type = args['hic_type']) 
-    hic_file = 'raw_data/hic/5kb_resolution_intrachromosomal/'+chromosome+'/'+chromosome+'_5kb.RAWobserved'
-    hic_norm_file = 'raw_data/hic/5kb_resolution_intrachromosomal/'+chromosome+'/'+chromosome+'_5kb.KRnorm'
+    hic_file = 'data/raw_data/hic/5kb_resolution_intrachromosomal/'+chromosome+'/'+chromosome+'_5kb.RAWobserved'
+    hic_norm_file = 'data/raw_data/hic/5kb_resolution_intrachromosomal/'+chromosome+'/'+chromosome+'_5kb.KRnorm'
     hic_is_vc = True
-    hic_threshold = 0.#2.788652e-03 * 0.01 #75% of contacts
+    hic_threshold = 0. #2.788652e-03 * 0.01 #75% of contacts
     #load HIC matrix
     HiC = load_hic(hic_file = hic_file,
         hic_norm_file = hic_norm_file,
